@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DOMINO Quest</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ========== TITLE SCREEN ========== -->
+  <section id="title-screen" class="screen active">
+    <div class="title-inner">
+      <h1 class="logo">
+        <img src="domino.png" alt="DOMINO QUEST" class="title-logo"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
+        <span class="logo-fallback" style="display:none;">DOMINO QUEST</span>
+      </h1>
+      <p class="subtitle">Brother Industries &mdash; Domino Division</p>
+
+      <div class="intro">
+        <p>Brother Industries &mdash; Domino事業部に配属された新入社員として、Odinプロジェクトの1年を歩む。</p>
+        <p>仲間と技術を積み上げ、QCD検討会を突破せよ。</p>
+      </div>
+
+      <div class="name-input">
+        <label for="player-name">NAME</label>
+        <input id="player-name" type="text" maxlength="10" placeholder="YOUR NAME" />
+      </div>
+
+      <div class="title-buttons">
+        <button id="btn-start"    class="btn-retro">START</button>
+        <button id="btn-continue" class="btn-retro">CONTINUE</button>
+        <button id="btn-help"     class="btn-retro">HELP</button>
+      </div>
+
+      <p class="press-start">&#9654; PRESS START</p>
+      <p class="version-tag">v1.1 &middot; OdinOS</p>
+    </div>
+  </section>
+
+  <!-- ========== SOUND SCREEN ========== -->
+  <section id="sound-screen" class="screen">
+    <div class="sound-inner">
+      <h2 class="sound-title">SOUND SETTINGS</h2>
+      <p class="sound-question">BGMを再生しますか？</p>
+      <ul id="sound-options">
+        <li class="sound-opt" data-val="on"><span class="heart-cursor"></span><span class="so-label">ON</span></li>
+        <li class="sound-opt active" data-val="off"><span class="heart-cursor"></span><span class="so-label">OFF</span></li>
+      </ul>
+      <div class="sound-warning">
+        <p class="sw-line">&#x203B; デフォルトでは音声OFFです。</p>
+        <p class="sw-line warn">&#x203B; 音声ONでプレイする場合は、周りに迷惑をかけない音量でお楽しみください。</p>
+        <p class="sw-line danger">&#x203B; 油断すると爆音が響き渡りマス。</p>
+      </div>
+      <p class="menu-hint">&uarr;&darr; 選択 &nbsp;/&nbsp; Z 決定 &nbsp;/&nbsp; X 戻る</p>
+    </div>
+  </section>
+
+  <!-- ========== GAME SCREEN ========== -->
+  <section id="game-screen" class="screen">
+    <div id="top-bar">
+      <div class="top-left">
+        <div id="chapter-label">Chapter 1</div>
+        <div id="room-label">&mdash;</div>
+        <div id="objective-label">目的: &mdash;</div>
+      </div>
+      <div class="top-right">
+        <div id="floor-label">2F</div>
+      </div>
+    </div>
+
+    <div id="stage-wrap">
+      <div id="stage">
+        <div id="room-bg"></div>
+        <div id="room-description"></div>
+        <div id="decor-layer"></div>
+        <div id="door-layer"></div>
+        <div id="object-layer"></div>
+        <div id="npc-layer"></div>
+        <div id="player"><div class="p-heart"></div></div>
+        <div id="interact-hint" class="hidden">Zで話す</div>
+      </div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="minimap"></div>
+      <div id="controls-hint">
+        <span>&uarr;&darr;&larr;&rarr; 移動</span>
+        <span class="sep">|</span>
+        <span>Z 決定</span>
+        <span class="sep">|</span>
+        <span>X メニュー</span>
+        <span class="sep">|</span>
+        <span>C ノート</span>
+      </div>
+      <div id="stats-mini"></div>
+    </div>
+  </section>
+
+  <!-- ========== DIALOG ========== -->
+  <div id="dialog" class="overlay hidden">
+    <div class="dialog-box">
+      <div id="dialog-speaker"></div>
+      <div id="dialog-text"></div>
+      <div id="dialog-choices" class="hidden"></div>
+      <div id="dialog-next" class="dialog-next">&#9660;</div>
+    </div>
+  </div>
+
+  <!-- ========== MENU ========== -->
+  <div id="menu" class="overlay hidden">
+    <div class="menu-box">
+      <h2>MENU</h2>
+      <ul id="menu-list">
+        <li data-menu="status"><span class="heart-cursor"></span><span class="mi-label">STATUS</span></li>
+        <li data-menu="notebook"><span class="heart-cursor"></span><span class="mi-label">NOTE</span></li>
+        <li data-menu="objective"><span class="heart-cursor"></span><span class="mi-label">OBJECTIVE</span></li>
+        <li data-menu="help"><span class="heart-cursor"></span><span class="mi-label">HELP</span></li>
+        <li data-menu="save"><span class="heart-cursor"></span><span class="mi-label">SAVE</span></li>
+        <li data-menu="title"><span class="heart-cursor"></span><span class="mi-label">TITLE</span></li>
+      </ul>
+      <div id="menu-detail"></div>
+      <p class="menu-hint">&uarr;&darr; 選択 &nbsp;/&nbsp; Z 決定 &nbsp;/&nbsp; X 戻る</p>
+    </div>
+  </div>
+
+  <!-- ========== NOTEBOOK ========== -->
+  <div id="notebook" class="overlay hidden">
+    <div class="notebook-box">
+      <h2>FIELD NOTE</h2>
+      <ul id="notebook-list"></ul>
+      <p class="menu-hint">X / C 閉じる</p>
+    </div>
+  </div>
+
+  <!-- ========== HELP ========== -->
+  <div id="help" class="overlay hidden">
+    <div class="help-box">
+      <h2>HELP</h2>
+      <h3>&gt; 操作</h3>
+      <ul>
+        <li>&uarr;&darr;&larr;&rarr; : 主人公（赤いハート）を動かす</li>
+        <li>Z : 決定 / 話す / 調べる / 会話を進める</li>
+        <li>Z長押し : 会話を早送り</li>
+        <li>X : メニューを開く / 戻る</li>
+        <li>C : フィールドノートを開く</li>
+        <li>光るドアに近づくと次の部屋へ。クリックでも移動できる。</li>
+      </ul>
+      <h3>&gt; ゲームのヒント</h3>
+      <ul>
+        <li>同じ人に何度も話しかけると、毎回少し違う話を聞けることがあります。</li>
+        <li>雑談の中に、QCD検討会で役立つヒントが隠れていることがあります。</li>
+        <li>赤いハートは、あなたの意思とメンタル余裕を表しています。</li>
+        <li>Zで話す/決定、Xでメニュー/戻る、Cでノートを開きます。</li>
+      </ul>
+      <h3>&gt; ステータス</h3>
+      <ul>
+        <li>設計理解 / 試作推進 / 評価力 / 説明力 / 信頼度 / メンタル余裕</li>
+        <li>相談・前提そろえ・現物確認・記録を残す選択は信頼度/説明力を上げる。</li>
+        <li>無理しすぎる選択は、進捗は上がるがメンタル余裕が下がる。</li>
+      </ul>
+      <p class="menu-hint">X 閉じる</p>
+    </div>
+  </div>
+
+  <!-- ========== BATTLE ========== -->
+  <div id="battle" class="overlay hidden">
+    <div class="battle-box">
+      <div class="battle-head">
+        <div id="battle-phase">Quality</div>
+        <div class="meter-wrap">
+          <div class="meter-label">納得度</div>
+          <div class="meter-outer"><div id="meter-inner"></div></div>
+          <div id="meter-value">0</div>
+        </div>
+      </div>
+      <div class="battle-player">
+        <div class="p-heart"></div>
+        <div class="battle-player-label">YOUR RESOLVE</div>
+      </div>
+      <div id="battle-question"></div>
+      <div id="battle-choices"></div>
+      <div id="battle-result" class="hidden"></div>
+      <p class="menu-hint">&uarr;&darr; 選択 &nbsp;/&nbsp; Z 決定 &nbsp;/&nbsp; X 戻る</p>
+    </div>
+  </div>
+
+  <!-- ========== ENDING ========== -->
+  <div id="ending" class="overlay hidden">
+    <div class="ending-box">
+      <h2 id="ending-title">YEAR 2 GATE</h2>
+      <div id="ending-text"></div>
+      <button id="ending-back" class="btn-retro">TITLE</button>
+    </div>
+  </div>
+
+  <!-- ========== TOAST ========== -->
+  <div id="toast" class="hidden"></div>
+
+  <!-- ========== BOOT OVERLAY ========== -->
+  <div id="boot-overlay" class="overlay hidden">
+    <div class="boot-box">
+      <div class="boot-line">DOMINO OS loading...</div>
+      <div class="boot-line">CHECKING FIELD NOTES...</div>
+      <div class="boot-line">AUDIO DEVICE READY...</div>
+      <div class="boot-line boot-press">PRESS START</div>
+      <div class="boot-skip">[ Z / X / CLICK to skip ]</div>
+    </div>
+  </div>
+
+  <!-- ========== CHAPTER STAMP ========== -->
+  <div id="chapter-stamp" class="hidden">
+    <div class="cs-line cs-main">CHAPTER CLEAR</div>
+    <div class="cs-line cs-sub">NOTE UPDATED</div>
+  </div>
+
+</div>
+<script src="script.js?v=20260425e"></script>
+</body>
+</html>
