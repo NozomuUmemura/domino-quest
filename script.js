@@ -5,23 +5,31 @@
 /* ========== ASSETS (local files only) ========== */
 const ASSETS = {
   titleLogo: "./domino.png",
+  favicon:   "./favicon.png",
+  faviconAway: "./heart.png",
   bgm: {
     home:  "./Home.m4a",
     kano:  "./Kano.m4a",
     kondo: "./Kondo.m4a",
     sten:  "./Sten.m4a",
-    qcd:   "./QCD.m4a"
+    qcd:   "./QCD.m4a",
+    kumon: "./Kumon.m4a"
   }
 };
 
-const SOUND_PREF_KEY = "domino-quest-sound-enabled";
+const SOUND_PREF_KEY    = "domino-quest-sound-enabled";
+const CLEARED_KEY       = "domino-quest-cleared";
+const QCD_RESULT_KEY    = "domino-quest-qcd-result";
+
+const BASE_TITLE = "DOMINO Quest";
+const AWAY_TITLE = "Come Back!!";
 
 /* ========== AudioManager ========== */
 const AudioManager = {
   enabled: false,
   currentKey: null,
   tracks: {},
-  volumes: { home: 0.35, kano: 0.4, kondo: 0.4, sten: 0.4, qcd: 0.4 },
+  volumes: { home: 0.35, kano: 0.4, kondo: 0.4, sten: 0.4, qcd: 0.4, kumon: 0.45 },
   _fadeTimers: { out: null, in: null },
 
   init() {
@@ -178,7 +186,9 @@ const SPEAKER_SFX_MAP = {
   mizutani:   "dialogueNormal",
   katou:      "dialogueNormal",
   sten:       "dialogueNormal",
-  futureSelf: "dialogueNormal"
+  futureSelf: "dialogueNormal",
+  kumon:      "dialogueBright",
+  kondouIdle: "dialogueBright"
 };
 
 const SFXManager = {
@@ -285,6 +295,10 @@ GAME_DATA.characters = {
     smallTalk: [
       "このフロアの照明、ちょっと青いよね。集中しやすくしてるらしい。",
       "ちゃんと水分補給してる？水分はチームより先に切れるから。"
+    ],
+    ng2: [
+      "また来たね、{name}さん。前より少し迷いが少ない顔をしてる。",
+      "同じ一年でも、二度目は少し肩の力が抜けて見えるよ。"
     ]
   },
   miwa: {
@@ -304,6 +318,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "インクの匂い、慣れると落ち着くんですよ。"
+    ],
+    ng2: [
+      "{name}さん、二度目ですね。前提を置く速さが、少し変わった気がします。"
     ]
   },
   kanou: {
@@ -325,6 +342,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "BECKという漫画、読んだことあるか？バンドもチームも、合わせる軸が要るんだよ。"
+    ],
+    ng2: [
+      "{name}、また来たな。同じ譜面でも、運指は変わるもんだ。"
     ]
   },
   hariyama: {
@@ -342,6 +362,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "今日の空、ちょっと湿度高いですね。計測、気をつけようね。"
+    ],
+    ng2: [
+      "{name}さん、おかえり。残課題の見え方、少し違うかもしれませんね。"
     ]
   },
   lee: {
@@ -361,6 +384,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "……新しいフィギュア、かわいい。"
+    ],
+    ng2: [
+      "……{name}さん。同じCreoでも、毎回違うものが見えるんだ。"
     ]
   },
   tabuchi: {
@@ -379,6 +405,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "机のフィギュア、いい造形ですね！"
+    ],
+    ng2: [
+      "{name}さん、お久しぶりです。同じ資料を作っても、二度目は構図が変わるんですよね。"
     ]
   },
   ishida: {
@@ -399,6 +428,9 @@ GAME_DATA.characters = {
     smallTalk: [
       "このトラックボール、慣れると戻れないですよね、疲れないし。",
       "PAD吸着……正直、何とかなるんだろうか状態。"
+    ],
+    ng2: [
+      "{name}さん、また来ましたね。前のループの記憶、図面に残ってるかもしれません。"
     ]
   },
   hayashi: {
@@ -418,6 +450,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "恒温槽の音、今日ちょっと静かだな。調子いいのかも。"
+    ],
+    ng2: [
+      "この会話、どこかで一度やった気がするねぇ。"
     ]
   },
   kondou: {
@@ -437,6 +472,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "昨日ベンチプレス多めに入れた。見てくれこの肩メロン(∩´∀｀)∩！"
+    ],
+    ng2: [
+      "押忍、{name}ちゃん！今回は二度目やね、脳に経験値積んできた感じ(=ﾟωﾟ)ﾉ"
     ]
   },
   mizutani: {
@@ -456,6 +494,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "工程フロー、今朝一枚書き直しました。"
+    ],
+    ng2: [
+      "{name}さん、二度目の量産試作。手の逃げ場、最初から見えていますか？"
     ]
   },
   katou: {
@@ -475,6 +516,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "今日は恒温槽の昇温、早めに仕掛けました。"
+    ],
+    ng2: [
+      "{name}さん、また会いましたね。再現性って、人にも当てはまる言葉なんだよね。"
     ]
   },
   fukunishi: {
@@ -495,6 +539,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "昨日の夜、ログだけ先に整理しました。"
+    ],
+    ng2: [
+      "2週目の新人は、だいたい扉の場所を覚えている気がします。"
     ]
   },
   takahashi: {
@@ -514,6 +561,9 @@ GAME_DATA.characters = {
     ],
     smallTalk: [
       "今日は雨だから、湿度計も一緒に見ておこう。"
+    ],
+    ng2: [
+      "{name}さん、また来ましたね。同じ一年でも、見え方は少し変わるものですね。"
     ]
   },
   sten: {
@@ -534,6 +584,9 @@ GAME_DATA.characters = {
     smallTalk: [
       "Coffee here is surprisingly strong.",
       "Back home, the line speed is higher. You would see different things."
+    ],
+    ng2: [
+      "Welcome back, {name}. Same project, different eyes."
     ]
   },
   futureSelf: {
@@ -541,6 +594,11 @@ GAME_DATA.characters = {
     color: "#ffffff", initial: "?",
     normal: ["……ここまで、よく歩いてきたね。"],
     hint: [], trust: [], smallTalk: []
+  },
+  kumon: {
+    name: "公文", role: "開発者のメカ同期 / 自由人",
+    color: "#5ab8ff", initial: "公",
+    normal: [], hint: [], trust: [], smallTalk: []
   }
 };
 
@@ -1030,7 +1088,19 @@ const state = {
 
   /* random-talk tracking */
   talkCount: {},
-  lastLine: {}
+  lastLine: {},
+
+  /* 2nd-playthrough mode (set at game start from CLEARED_KEY) */
+  isNG2: false,
+
+  /* Kumon mode */
+  kumonMode: false,
+  kumonActive: false,
+  kumonEnded: false,
+
+  /* Idle event */
+  lastActivityAt: 0,
+  lastIdleEventAt: 0
 };
 
 const SAVE_KEY = "domino_quest_save_v1";
@@ -1396,6 +1466,8 @@ function talkToNPC(id) {
   if (talks >= 2 && c.smallTalk && c.smallTalk.length) pool = pool.concat(c.smallTalk);
   if (talks >= 3 && c.hint && c.hint.length) pool = pool.concat(c.hint);
   if (trust >= 8 && c.trust && c.trust.length) pool = pool.concat(c.trust);
+  /* 2nd-playthrough: mix in a small set of meta lines */
+  if (state.isNG2 && c.ng2 && c.ng2.length) pool = pool.concat(c.ng2);
   if (pool.length === 0) pool = ["……"];
 
   /* Avoid repeating the previous line for this character */
@@ -1626,11 +1698,12 @@ function endDialog() {
   /* Wipe state and DOM so the next conversation starts truly clean */
   resetDialogUI();
   /* Resume Home BGM if a character-specific track was playing
-     (but not during the QCD battle, which has its own track) */
-  if (!state.battle &&
+     (but not during the QCD battle / Kumon mode, which have their own tracks) */
+  if (!state.battle && !state.kumonActive &&
       AudioManager.currentKey &&
       AudioManager.currentKey !== "home" &&
-      AudioManager.currentKey !== "qcd") {
+      AudioManager.currentKey !== "qcd" &&
+      AudioManager.currentKey !== "kumon") {
     AudioManager.resumeHome();
   }
   if (typeof onDone === "function") onDone();
@@ -1679,6 +1752,7 @@ function pickMenu() {
     case "title":
       closeMenu();
       AudioManager.stop();
+      setBaseTitle(BASE_TITLE);
       showScreen("title");
       break;
   }
@@ -1750,7 +1824,7 @@ function pickBattleChoice() {
   b.meter = clamp(b.meter + c.meter, 0, 100);
   applyEffect(c.e);
   if (c.n) addNote(c.n);
-  b.scores.push({ phase: p.name, reply: c.r, choice: c.t });
+  b.scores.push({ phase: p.name, reply: c.r, choice: c.t, meterAdd: c.meter });
   b.phase += 1;
   if (b.phase < GAME_DATA.battle.phases.length) {
     renderBattle();
@@ -1774,6 +1848,11 @@ function finishBattle() {
   state.eventsDone.qcd = true;
   if (pass) addNote("QCDは、物差し・現物・残課題を一枚でつなぐ");
   else addNote("QCDは、気合いではなく物差しで語る");
+  /* Persist battle result for Kumon mode comments */
+  try {
+    const payload = { meter: b.meter, pass: pass, scores: b.scores, ts: Date.now() };
+    localStorage.setItem(QCD_RESULT_KEY, JSON.stringify(payload));
+  } catch (e) {}
 }
 function closeBattle() {
   $("battle").classList.add("hidden");
@@ -1811,7 +1890,24 @@ function closeEnding() {
   state.endingOpen = false;
   $("ending").classList.add("hidden");
   AudioManager.stop();
+  /* Mark first-playthrough cleared (persists for hidden domino content) */
+  try { localStorage.setItem(CLEARED_KEY, "true"); } catch (e) {}
   showScreen("title");
+  setBaseTitle(BASE_TITLE);
+  updateTitleHint();
+}
+
+function isCleared() {
+  try { return localStorage.getItem(CLEARED_KEY) === "true"; }
+  catch (e) { return false; }
+}
+
+function loadQcdResult() {
+  try {
+    const raw = localStorage.getItem(QCD_RESULT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
 }
 
 /* =========================================================
@@ -1947,11 +2043,29 @@ document.addEventListener("keyup", e => {
    TITLE BUTTONS
 ========================================================= */
 $("btn-start").addEventListener("click", () => {
-  const name = ($("player-name").value || "").trim() || "新人";
+  const raw = ($("player-name").value || "").trim();
+  const name = raw || "新人";
   state.name = name.substring(0, 10);
   SFXManager.play("confirm");
+  /* Hidden command: name = "domino" + cleared once → Kumon mode (skip normal play) */
+  if (isCleared() && isDominoName(raw)) {
+    state.kumonMode = true;
+    enterSoundScreen("kumon");
+    return;
+  }
+  state.kumonMode = false;
   enterSoundScreen("new");
 });
+
+/* Live `??` hint while typing the secret name on title */
+const _nameInput = $("player-name");
+if (_nameInput) {
+  _nameInput.addEventListener("input", () => {
+    if (state.screen !== "title") return;
+    if (!isCleared()) return;
+    if (isDominoName(_nameInput.value)) showToast("??");
+  });
+}
 
 $("btn-continue").addEventListener("click", () => {
   if (!loadGame()) { SFXManager.play("warning"); showToast("セーブがありません"); return; }
@@ -1993,6 +2107,11 @@ function confirmSoundScreen() {
   SFXManager.setEnabled(enabled);
 
   const mode = state.soundScreen.mode;
+  if (mode === "kumon") {
+    /* Hidden Kumon ending — skip normal play entirely */
+    startKumonMode();
+    return;
+  }
   if (mode === "new") {
     state.chapter = 1;
     state.stats = { ...GAME_DATA.defaultStats };
@@ -2004,7 +2123,12 @@ function confirmSoundScreen() {
     state.talkCount = {};
     state.lastLine = {};
   }
+  /* Refresh NG2 flag (set after first ending) */
+  state.isNG2 = isCleared() && (mode === "new");
+  state.lastActivityAt = Date.now();
+  state.lastIdleEventAt = Date.now();
   showScreen("game");
+  setBaseTitle(BASE_TITLE);
   renderRoom();
   requestAnimationFrame(() => { resizeStage(); requestAnimationFrame(resizeStage); });
   if (enabled) AudioManager.play("home");
@@ -2105,6 +2229,174 @@ function loop() {
 }
 
 /* =========================================================
+   TAB VISIBILITY — favicon + title swap
+========================================================= */
+let _baseTitle = BASE_TITLE;
+function setBaseTitle(t) {
+  _baseTitle = t || BASE_TITLE;
+  if (!document.hidden) document.title = _baseTitle;
+}
+function setFavicon(href) {
+  const link = document.getElementById("favicon");
+  if (link) link.setAttribute("href", href);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    document.title = AWAY_TITLE;
+    setFavicon(ASSETS.faviconAway);
+  } else {
+    document.title = _baseTitle || BASE_TITLE;
+    setFavicon(ASSETS.favicon);
+  }
+});
+
+/* =========================================================
+   IDLE EVENT — 30s no-input → Kondou message
+========================================================= */
+const IDLE_THRESHOLD_MS  = 30 * 1000;
+const IDLE_COOLDOWN_MS   = 60 * 1000;
+
+function noteActivity() {
+  state.lastActivityAt = Date.now();
+}
+["keydown", "mousedown", "click", "mousemove", "touchstart", "touchmove", "wheel"]
+  .forEach(ev => document.addEventListener(ev, noteActivity, { passive: true }));
+
+function idleTick() {
+  /* Only consider triggering when player is in normal field exploration */
+  if (state.screen !== "game") return;
+  if (state.dialog.active || state.menu.active || state.notebookOpen ||
+      state.helpOpen || state.battle || state.endingOpen ||
+      state.kumonActive) return;
+  const now = Date.now();
+  if (now - state.lastActivityAt < IDLE_THRESHOLD_MS) return;
+  if (now - state.lastIdleEventAt < IDLE_COOLDOWN_MS) return;
+  state.lastIdleEventAt = now;
+  state.lastActivityAt = now; /* reset so we don't re-fire next tick */
+  /* Kondou pops up with the requested line */
+  runDialog("近藤", [{ t: "お疲れかな(。´･ω･)?" }], null, "kondou");
+}
+setInterval(idleTick, 1000);
+
+/* =========================================================
+   TITLE-SCREEN HIDDEN HINT (`domino`)
+========================================================= */
+function isDominoName(v) {
+  return ((v || "") + "").trim().toLowerCase() === "domino";
+}
+function updateTitleHint() {
+  /* Show the small `??` hint only if the player has cleared once
+     and the name input is exactly "domino". */
+  const input = $("player-name");
+  if (!input) return;
+  if (state.screen !== "title") return;
+  if (!isCleared()) return;
+  if (isDominoName(input.value)) {
+    showToast("??");
+  }
+}
+
+/* =========================================================
+   KUMON MODE
+========================================================= */
+function buildKumonQueue() {
+  const qcd = loadQcdResult();
+  const playerName = state.name || "君";
+  const speaker = "公文";
+  const lines = [
+    "ふぇ〜、{name}か。久しぶりやな。",
+    "なんやその顔、緊張しとんの？まぁ気楽にやりなはれ。",
+    "1週目クリアしたんやって？ガンバレ言うたやろ、ちゃんと最後まで歩いたやんけ。"
+  ];
+
+  /* Battle result branching */
+  if (!qcd) {
+    lines.push("QCDの方はまだなんやな。まぁ、機会あったら覗いてみ。");
+  } else {
+    const meter = qcd.meter || 0;
+    if (meter >= 80) {
+      lines.push("QCDの納得度" + meter + "か。ええやん。ちゃんとQもCもDも見てる。");
+      lines.push("こういう人は、あとで効いてくるんよ。");
+    } else if (meter >= 60) {
+      lines.push("QCDの納得度" + meter + "やな。悪くないな。");
+      lines.push("でも、迷ったところに本音が出るんよ。");
+    } else {
+      lines.push("QCDの納得度" + meter + "か。ふぇ〜。");
+      lines.push("まぁでも、失敗ログが一番強い資料になる時あるからな。");
+    }
+    /* Per-phase leaning detection (excluding Final) */
+    const ratio = {};
+    (qcd.scores || []).forEach(s => {
+      if (s.phase === "Final Decision") return;
+      const max = phaseMaxMeter(s.phase);
+      if (max > 0) ratio[s.phase] = (s.meterAdd || 0) / max;
+    });
+    const phases = Object.keys(ratio);
+    if (phases.length) {
+      phases.sort((a, b) => ratio[b] - ratio[a]);
+      const top = phases[0];
+      if (top === "Cost") lines.push("お金の話だけで勝つと、あとで品質が取り立てに来るで。");
+      else if (top === "Delivery") lines.push("急ぐのはええけど、急いだ理由を説明できるようにしとき。");
+      else if (top === "Quality") lines.push("品質を見る目はええ。でも、作れへん正しさは現場で迷子になる時ある。");
+    }
+  }
+
+  /* 雑談 (株・車・自由奔放) */
+  lines.push("最近な、株のチャート眺めとった。下振れも上振れもあるけど、最後は設計思想やと思うで。");
+  lines.push("車？ああ、相変わらず乗っとるよ。週末だけアクセル踏むのが、ちょうどええバランスや。");
+  lines.push("自由にやっとるように見えるかもしれんけど、まぁ実際そうやな(笑)");
+  /* 核心 + 締め */
+  lines.push("せっかくやるなら、全部見た方がいいか。寄り道も、たぶん本筋や。");
+  lines.push("終わりというか、始まった感の方が強いな。{name}、ええ顔しとるで。");
+  lines.push("ほな、またな。じゃあな。");
+
+  return lines.map(t => ({ t, speaker }));
+}
+
+function phaseMaxMeter(name) {
+  const ph = (GAME_DATA.battle.phases || []).find(p => p.name === name);
+  if (!ph) return 0;
+  return ph.choices.reduce((m, c) => Math.max(m, c.meter || 0), 0);
+}
+
+function startKumonMode() {
+  state.kumonActive = true;
+  state.kumonEnded = false;
+  document.body.classList.add("kumon-active");
+  /* Show the Kumon stage with both hearts */
+  const ov = $("kumon-mode");
+  if (ov) ov.classList.remove("hidden");
+  const lbl = $("kumon-player-label");
+  if (lbl) lbl.textContent = (state.name || "YOU").toUpperCase();
+  const endTag = $("kumon-end");
+  if (endTag) endTag.classList.add("hidden");
+  /* Title flair */
+  setBaseTitle("DOMINO Quest — another ending");
+  /* BGM */
+  AudioManager.switchTo("kumon");
+  /* Run the dialog queue */
+  const queue = buildKumonQueue();
+  runDialog("公文", queue, finishKumonMode, "kumon");
+}
+
+function finishKumonMode() {
+  state.kumonEnded = true;
+  /* Show ending tag, then return to title shortly */
+  const endTag = $("kumon-end");
+  if (endTag) endTag.classList.remove("hidden");
+  setTimeout(() => {
+    const ov = $("kumon-mode");
+    if (ov) ov.classList.add("hidden");
+    document.body.classList.remove("kumon-active");
+    state.kumonActive = false;
+    state.kumonMode = false;
+    AudioManager.stop();
+    setBaseTitle(BASE_TITLE);
+    showScreen("title");
+  }, 2400);
+}
+
+/* =========================================================
    INIT
 ========================================================= */
 function init() {
@@ -2117,6 +2409,8 @@ function init() {
   /* CRT boot animation, then title (skippable). */
   showBootSequence(() => {
     showScreen("title");
+    setBaseTitle(BASE_TITLE);
+    setFavicon(ASSETS.favicon);
     resizeStage();
     requestAnimationFrame(resizeStage);
     if (!hasSave()) $("btn-continue").disabled = true;

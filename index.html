@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DOMINO Quest</title>
+<link id="favicon" rel="icon" type="image/png" href="favicon.png" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -196,6 +197,24 @@
     </div>
   </div>
 
+  <!-- ========== KUMON MODE ========== -->
+  <div id="kumon-mode" class="overlay hidden">
+    <div class="kumon-stage">
+      <div class="kumon-heart-row">
+        <div class="kumon-heart-block">
+          <div class="p-heart"></div>
+          <div class="kumon-heart-label" id="kumon-player-label">YOU</div>
+        </div>
+        <div class="kumon-vs">&hearts;</div>
+        <div class="kumon-heart-block">
+          <div class="p-heart blue"></div>
+          <div class="kumon-heart-label">公文</div>
+        </div>
+      </div>
+      <div id="kumon-end" class="kumon-end hidden">DOMINO Quest &mdash; another ending</div>
+    </div>
+  </div>
+
   <!-- ========== TOAST ========== -->
   <div id="toast" class="hidden"></div>
 
@@ -217,6 +236,6 @@
   </div>
 
 </div>
-<script src="script.js?v=20260425e"></script>
+<script src="script.js?v=20260429a"></script>
 </body>
 </html>
