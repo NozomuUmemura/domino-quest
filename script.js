@@ -1890,11 +1890,29 @@ function closeEnding() {
   state.endingOpen = false;
   $("ending").classList.add("hidden");
   AudioManager.stop();
-  /* Mark first-playthrough cleared (persists for hidden domino content) */
+  /* If this is the very first clear, show the secret hint popup
+     before returning to the title. Subsequent clears go straight to title. */
+  const wasCleared = isCleared();
   try { localStorage.setItem(CLEARED_KEY, "true"); } catch (e) {}
-  showScreen("title");
   setBaseTitle(BASE_TITLE);
-  updateTitleHint();
+  if (!wasCleared) {
+    openSecretHint();
+    return;
+  }
+  showScreen("title");
+}
+
+function openSecretHint() {
+  const ov = $("secret-hint");
+  if (!ov) { showScreen("title"); return; }
+  ov.classList.remove("hidden");
+  SFXManager.play("confirm", { cooldown: 200 });
+}
+function closeSecretHint() {
+  const ov = $("secret-hint");
+  if (ov) ov.classList.add("hidden");
+  SFXManager.play("cancel");
+  showScreen("title");
 }
 
 function isCleared() {
@@ -1963,6 +1981,12 @@ document.addEventListener("keydown", e => {
   if ((k === "z" || k === "Z") && !wasDown) state.zHeldSince = Date.now();
 
   /* Priority order of overlays */
+  /* Secret-hint popup (after first clear) */
+  const hintEl = document.getElementById("secret-hint");
+  if (hintEl && !hintEl.classList.contains("hidden")) {
+    if (k === "z" || k === "Z" || k === "x" || k === "X" || k === "Enter" || k === "Escape") closeSecretHint();
+    return;
+  }
   if (state.endingOpen) {
     if (k === "z" || k === "Z" || k === "x" || k === "X") closeEnding();
     return;
@@ -2153,6 +2177,9 @@ $("btn-help").addEventListener("click", () => { SFXManager.play("confirm"); open
 
 $("ending-back").addEventListener("click", closeEnding);
 
+const _hintBack = $("hint-back");
+if (_hintBack) _hintBack.addEventListener("click", closeSecretHint);
+
 /* Menu list click */
 document.querySelectorAll("#menu-list li").forEach((li, i) => {
   li.addEventListener("click", () => { state.menu.idx = i; renderMenu(); pickMenu(); });
@@ -2301,10 +2328,10 @@ function updateTitleHint() {
 ========================================================= */
 function buildKumonQueue() {
   const qcd = loadQcdResult();
-  const playerName = state.name || "君";
   const speaker = "公文";
+  /* Kumon never calls the player by name (the entry name is "domino"). */
   const lines = [
-    "ふぇ〜、{name}か。久しぶりやな。",
+    "ふぇ〜、久しぶりやな。",
     "なんやその顔、緊張しとんの？まぁ気楽にやりなはれ。",
     "1週目クリアしたんやって？ガンバレ言うたやろ、ちゃんと最後まで歩いたやんけ。"
   ];
@@ -2347,7 +2374,7 @@ function buildKumonQueue() {
   lines.push("自由にやっとるように見えるかもしれんけど、まぁ実際そうやな(笑)");
   /* 核心 + 締め */
   lines.push("せっかくやるなら、全部見た方がいいか。寄り道も、たぶん本筋や。");
-  lines.push("終わりというか、始まった感の方が強いな。{name}、ええ顔しとるで。");
+  lines.push("終わりというか、始まった感の方が強いな。ええ顔しとるで。");
   lines.push("ほな、またな。じゃあな。");
 
   return lines.map(t => ({ t, speaker }));
