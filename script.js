@@ -21,8 +21,10 @@ const ASSETS = {
      simply renders as a plain outlined square (handled at obstacle build time). */
   selfObstacleSprites: [
     "./Bolt.png",
-    "./Spanner.png",
+    "./Wrench.png",
+    "./Nut.png",
     "./Gear.png",
+    "./Spanner.png",
     "./Screw.png",
     "./Board.png"
   ]
@@ -1120,11 +1122,13 @@ const state = {
   selfBattleTurn: 0,        /* 1..5 */
   selfPlayerHp: 100,
   selfEnemyHp: 100,
-  selfBattlePhase: null,    /* "intro" | "enemyTaunt" | "enemy" | "playerCommand" | "attackMeter" | "result" */
+  selfBattlePhase: null,    /* "intro" | "enemyTaunt" | "enemy" | "playerCommand" | "attackMeter" | "attackResolving" | "result" */
   selfKeys: {},             /* arena movement keys, kept separate from main keys */
   selfObstacles: [],        /* live obstacle objects with x,y,w,h,vx,vy,sprite */
   selfAnimationFrame: 0,    /* requestAnimationFrame id (0 when stopped) */
   selfAttackMeterActive: false,
+  selfAttackInputReady: false,
+  selfAttackCommitted: false,
   selfHeart: { x: 220, y: 96, hitUntil: 0 },
   selfArenaSize: { w: 480, h: 220 },
   selfTurnEndAt: 0,         /* timestamp when current enemy phase ends */
@@ -2457,9 +2461,11 @@ function buildKumonQueue() {
   const speaker = "公文";
   /* Kumon never calls the player by name (the entry name is "domino"). */
   const lines = [
-    "ふぇ〜、久しぶりやな。",
-    "なんやその顔、緊張しとんの？まぁ気楽にやりなはれ。",
-    "1週目クリアしたんやって？ガンバレ言うたやろ、ちゃんと最後まで歩いたやんけ。"
+    "うぇーい",
+    "なんやその顔(。´･ω･)?まぁ、気楽にいこうやよ。",
+    "1週目クリアしたんやね。品質、コスト、納期。どれも正しいツラをしてくるから、ややこしいんよ。",
+    "でもね、QCDって全部を満点にするゲームじゃないやよ。何を守って、何を許したかを、自分の言葉で説明できるかなんよ。",
+    "設計思想って、かっこいい言葉だけどね。"
   ];
 
   /* Battle result branching */
@@ -2475,7 +2481,7 @@ function buildKumonQueue() {
       lines.push("でも、迷ったところに本音が出るんよ。");
     } else {
       lines.push("QCDの納得度" + meter + "か。ふぇ〜。");
-      lines.push("まぁでも、失敗ログが一番強い資料になる時あるからな。");
+      lines.push("もう一回やり直し。");
     }
     /* Per-phase leaning detection (excluding Final) */
     const ratio = {};
@@ -2488,21 +2494,24 @@ function buildKumonQueue() {
     if (phases.length) {
       phases.sort((a, b) => ratio[b] - ratio[a]);
       const top = phases[0];
-      if (top === "Cost") lines.push("お金の話だけで勝つと、あとで品質が取り立てに来るで。");
-      else if (top === "Delivery") lines.push("急ぐのはええけど、急いだ理由を説明できるようにしとき。");
+      if (top === "Cost") lines.push("お金の話だけで勝つと、あとで品質が取り立てに来るよー。");
+      else if (top === "Delivery") lines.push("急ぐのはええけど、急いだ理由を説明できるようにしといたほうがいいよ。");
       else if (top === "Quality") lines.push("品質を見る目はええ。でも、作れへん正しさは現場で迷子になる時ある。");
     }
   }
 
   /* 雑談 (株・車・自由奔放) */
-  lines.push("最近な、株のチャート眺めとった。下振れも上振れもあるけど、最後は設計思想やと思うで。");
-  lines.push("車？ああ、相変わらず乗っとるよ。週末だけアクセル踏むのが、ちょうどええバランスや。");
+  lines.push("最近な、株のチャート眺めとった。株も設計も、上振れした時より、下振れした時に考え方が出るんよ。");
+  lines.push("車？ああ、相変わらず乗っとるよ。速い車もそうだよね。アクセルより、ちゃんと止まれることの方が大事だったりする。");
   lines.push("自由にやっとるように見えるかもしれんけど、まぁ実際そうやな(笑)");
   /* 核心 + 締め */
   lines.push("せっかくやるなら、全部見た方がいいか。寄り道も、たぶん本筋や。");
-  lines.push("終わりというか、始まった感の方が強いな。ええ顔しとるで。");
-  lines.push("ほな、またな。じゃあな。");
-
+  lines.push("終わりというか、始まった感の方が強いな。");
+  lines.push("で、ここからが本題。");
+  lines.push("最後に残る相手って、仕様でも納期でも上司でもないんよ。");
+  lines.push("自分で作った言い訳が、一番よくできてる。だから一番倒しにくい。");
+  lines.push("人って、できなかったことより、できなかった理由を上手に説明できるようになる方が怖いんよ。");
+  lines.push("だから最後に一回だけ、自分と話してきたらいい。ガンバレ。");
   return lines.map(t => ({ t, speaker }));
 }
 
@@ -2603,21 +2612,32 @@ function closeSelfHint() {
 
 /* ---------- Self battle: setup, run, teardown ---------- */
 const SELF_BATTLE_CFG = {
+  playerHp: 100,
+  enemyHp: 100,
   arenaW: 480,
   arenaH: 220,
   heartW: 32,
   heartH: 28,
   /* Hit cushion: shrink hitbox a little so the player has fair iframes. */
-  heartHitInset: 6,
+  heartHitInset: 7,
+  obstacleHitInset: 5,
   heartSpeed: 230,        /* px/s */
   hitDamage: 10,
-  hitCooldownMs: 700,
-  attackMinDamage: 20,
-  attackMaxDamage: 42,
-  watchDamage: 18,
-  standDamage: 20,
+  invulnMs: 520,
+  attackInputDelayMs: 420,
+  meterSpeed: 1.95,
+  timingDamage: { perfect: 30, good: 24, ok: 18, miss: 11 },
+  watchDamage: 12,
+  standDamage: 14,
   /* Per-turn enemy phase length (ms) — kept "難しいけど勝てる" shape */
-  turnDurationMs: [9000, 9500, 10000, 10500, 11000],
+  turnDurationMs: [10000, 11000, 12000, 13000, 14000],
+  turnPatterns: [
+    { spawnMs: 430, jitterMs: 70,  maxObstacles: 11 },
+    { spawnMs: 340, jitterMs: 60,  maxObstacles: 13 },
+    { spawnMs: 300, jitterMs: 55,  maxObstacles: 15 },
+    { spawnMs: 250, jitterMs: 45,  maxObstacles: 18 },
+    { spawnMs: 185, jitterMs: 45,  maxObstacles: 24 }
+  ],
   turns: 5
 };
 
@@ -2740,7 +2760,7 @@ function selfResetArena() {
 
 /* ---------- Obstacle factory per turn ----------
    Returns spawn config: { interval (ms), make() -> obstacle } */
-function selfSpawnerForTurn(turn) {
+function selfLegacySpawnerForTurn(turn) {
   const W = SELF_BATTLE_CFG.arenaW;
   const H = SELF_BATTLE_CFG.arenaH;
   const sprites = ASSETS.selfObstacleSprites;
@@ -2852,6 +2872,214 @@ function selfSpawnerForTurn(turn) {
   };
 }
 
+/* Harder self-battle spawner. This intentionally overrides the earlier simple
+   pattern while keeping the public function name used by the battle loop. */
+function selfSpawnerForTurn(turn) {
+  const W = SELF_BATTLE_CFG.arenaW;
+  const H = SELF_BATTLE_CFG.arenaH;
+  const sprites = ASSETS.selfObstacleSprites;
+  const pick = (i) => sprites[i % sprites.length];
+  const pattern = SELF_BATTLE_CFG.turnPatterns[Math.min(turn - 1, SELF_BATTLE_CFG.turnPatterns.length - 1)];
+  const jitter = () => pattern.spawnMs + Math.random() * pattern.jitterMs;
+  const laneY = (lane, lanes) => {
+    const count = lanes || 5;
+    return 18 + lane * ((H - 46) / Math.max(1, count - 1)) + (Math.random() - 0.5) * 10;
+  };
+  const obstacle = (opts) => ({
+    x: opts.x, y: opts.y,
+    w: opts.w || 26, h: opts.h || 26,
+    vx: opts.vx || 0, vy: opts.vy || 0,
+    sprite: opts.sprite,
+    spin: !!opts.spin,
+    angle: opts.angle || 0,
+    spinDuration: opts.spinDuration || (0.65 + Math.random() * 0.55),
+    spinReverse: !!opts.spinReverse,
+    hitInset: opts.hitInset == null ? SELF_BATTLE_CFG.obstacleHitInset : opts.hitInset
+  });
+
+  if (turn === 1) {
+    let lane = 0;
+    return {
+      maxObstacles: pattern.maxObstacles,
+      interval: jitter,
+      make() {
+        lane = (lane + 1 + Math.floor(Math.random() * 2)) % 5;
+        const out = [obstacle({
+          x: W + 8,
+          y: laneY(lane, 5),
+          w: 24, h: 24,
+          vx: -(190 + Math.random() * 35),
+          sprite: pick(0),
+          angle: Math.random() * 360,
+          spin: Math.random() < 0.35
+        })];
+        if (Math.random() < 0.38) {
+          const lane2 = (lane + 2 + Math.floor(Math.random() * 2)) % 5;
+          out.push(obstacle({
+            x: W + 44 + Math.random() * 30,
+            y: laneY(lane2, 5),
+            w: 23, h: 23,
+            vx: -(175 + Math.random() * 45),
+            sprite: pick(0),
+            angle: Math.random() * 360,
+            spin: Math.random() < 0.45,
+            spinReverse: true
+          }));
+        }
+        return out;
+      }
+    };
+  }
+
+  if (turn === 2) {
+    return {
+      maxObstacles: pattern.maxObstacles,
+      interval: jitter,
+      make() {
+        const count = Math.random() < 0.42 ? 2 : 1;
+        const gap = 90 + Math.random() * 70;
+        const startX = 16 + Math.random() * (W - 32);
+        const out = [];
+        for (let i = 0; i < count; i++) {
+          out.push(obstacle({
+            x: (startX + i * gap) % (W - 26),
+            y: -32 - i * 22,
+            w: 26, h: 28,
+            vx: (Math.random() - 0.5) * 38,
+            vy: 205 + Math.random() * 55,
+            sprite: Math.random() < 0.55 ? pick(1) : pick(4),
+            angle: -35 + Math.random() * 70,
+            spin: Math.random() < 0.28
+          }));
+        }
+        return out;
+      }
+    };
+  }
+
+  if (turn === 3) {
+    return {
+      maxObstacles: pattern.maxObstacles,
+      interval: jitter,
+      make() {
+        const fromLeft = Math.random() < 0.5;
+        const dirX = fromLeft ? 1 : -1;
+        const out = [obstacle({
+          x: fromLeft ? -34 : W + 10,
+          y: 16 + Math.random() * (H - 70),
+          w: 28, h: 28,
+          vx: dirX * (165 + Math.random() * 55),
+          vy: (Math.random() < 0.5 ? -1 : 1) * (80 + Math.random() * 55),
+          sprite: pick(3),
+          spin: true,
+          spinDuration: 0.55 + Math.random() * 0.35,
+          spinReverse: Math.random() < 0.5
+        })];
+        if (Math.random() < 0.5) {
+          out.push(obstacle({
+            x: Math.random() < 0.5 ? -40 : W + 12,
+            y: laneY(Math.floor(Math.random() * 4), 4),
+            w: 32, h: 24,
+            vx: (Math.random() < 0.5 ? 1 : -1) * (130 + Math.random() * 45),
+            vy: (Math.random() - 0.5) * 42,
+            sprite: pick(6),
+            angle: Math.random() < 0.5 ? 8 : -8,
+            hitInset: 7
+          }));
+        }
+        return out;
+      }
+    };
+  }
+
+  if (turn === 4) {
+    let toggle = 0;
+    return {
+      maxObstacles: pattern.maxObstacles,
+      interval: jitter,
+      make() {
+        toggle = (toggle + 1) % 2;
+        const y = laneY(Math.floor(Math.random() * 5), 5);
+        const out = [
+          obstacle({
+            x: toggle === 0 ? W + 8 : -34,
+            y,
+            w: 24, h: 24,
+            vx: (toggle === 0 ? -1 : 1) * (215 + Math.random() * 45),
+            vy: (Math.random() - 0.5) * 30,
+            sprite: toggle === 0 ? pick(0) : pick(2),
+            angle: Math.random() * 360,
+            spin: Math.random() < 0.55,
+            spinReverse: toggle !== 0
+          }),
+          obstacle({
+            x: 18 + Math.random() * (W - 42),
+            y: -34,
+            w: 23, h: 28,
+            vx: (Math.random() - 0.5) * 65,
+            vy: 215 + Math.random() * 55,
+            sprite: pick(5),
+            angle: 25 + Math.random() * 110,
+            spin: Math.random() < 0.42
+          })
+        ];
+        if (Math.random() < 0.35) {
+          const fromLeft = Math.random() < 0.5;
+          out.push(obstacle({
+            x: fromLeft ? -34 : W + 8,
+            y: 18 + Math.random() * (H - 52),
+            w: 25, h: 25,
+            vx: (fromLeft ? 1 : -1) * (185 + Math.random() * 50),
+            vy: (Math.random() < 0.5 ? -1 : 1) * (55 + Math.random() * 45),
+            sprite: pick(2),
+            spin: true,
+            spinDuration: 0.45 + Math.random() * 0.45
+          }));
+        }
+        return out;
+      }
+    };
+  }
+
+  return {
+    maxObstacles: pattern.maxObstacles,
+    interval: jitter,
+    make() {
+      const count = Math.random() < 0.55 ? 3 : 2;
+      const out = [];
+      for (let i = 0; i < count; i++) {
+        const mode = Math.floor(Math.random() * 5);
+        const idx = Math.floor(Math.random() * sprites.length);
+        const size = 22 + Math.random() * 8;
+        if (mode === 0) {
+          out.push(obstacle({ x: W + 10 + i * 24, y: laneY(Math.floor(Math.random() * 6), 6),
+            w: size, h: size, vx: -(235 + Math.random() * 70), vy: (Math.random() - 0.5) * 70,
+            sprite: pick(idx), spin: true, spinDuration: 0.38 + Math.random() * 0.35, spinReverse: Math.random() < 0.5 }));
+        } else if (mode === 1) {
+          out.push(obstacle({ x: -36 - i * 24, y: laneY(Math.floor(Math.random() * 6), 6),
+            w: size, h: size, vx: 220 + Math.random() * 65, vy: (Math.random() - 0.5) * 70,
+            sprite: pick(idx), spin: true, spinDuration: 0.38 + Math.random() * 0.35, spinReverse: Math.random() < 0.5 }));
+        } else if (mode === 2) {
+          out.push(obstacle({ x: 12 + Math.random() * (W - 36), y: -38 - i * 18,
+            w: size, h: size, vx: (Math.random() - 0.5) * 90, vy: 235 + Math.random() * 70,
+            sprite: pick(idx), spin: idx !== 6, spinDuration: 0.45 + Math.random() * 0.4 }));
+        } else if (mode === 3) {
+          const fromLeft = Math.random() < 0.5;
+          out.push(obstacle({ x: fromLeft ? -38 : W + 12, y: 12 + Math.random() * (H - 58),
+            w: size + 2, h: size + 2, vx: (fromLeft ? 1 : -1) * (195 + Math.random() * 80),
+            vy: (Math.random() < 0.5 ? -1 : 1) * (95 + Math.random() * 70),
+            sprite: pick(idx), spin: true, spinDuration: 0.34 + Math.random() * 0.35, spinReverse: Math.random() < 0.5 }));
+        } else {
+          out.push(obstacle({ x: 16 + Math.random() * (W - 48), y: H + 10 + i * 18,
+            w: size, h: size, vx: (Math.random() - 0.5) * 85, vy: -(195 + Math.random() * 55),
+            sprite: pick(idx), spin: idx !== 6, spinDuration: 0.5 + Math.random() * 0.45 }));
+        }
+      }
+      return out;
+    }
+  };
+}
+
 /* Render a single new obstacle into the arena DOM.
    Position is driven by left/top so the optional .spin CSS animation
    (which owns `transform`) doesn't fight us. */
@@ -2866,6 +3094,11 @@ function selfAppendObstacleEl(ob) {
   el.style.height = ob.h + "px";
   el.style.left = ob.x + "px";
   el.style.top  = ob.y + "px";
+  el.style.rotate = (ob.angle || 0) + "deg";
+  if (ob.spin) {
+    el.style.setProperty("--self-spin-duration", (ob.spinDuration || 0.7) + "s");
+    el.style.setProperty("--self-spin-end", ob.spinReverse ? "-360deg" : "360deg");
+  }
   /* Graceful fallback: if sprite is missing, render as outlined block. */
   el.onerror = () => {
     el.removeAttribute("src");
@@ -2907,8 +3140,13 @@ function selfCheckHits(now) {
   const hw = SELF_BATTLE_CFG.heartW - inset * 2;
   const hh = SELF_BATTLE_CFG.heartH - inset * 2;
   for (const ob of state.selfObstacles) {
-    if (hx < ob.x + ob.w && hx + hw > ob.x &&
-        hy < ob.y + ob.h && hy + hh > ob.y) {
+    const oi = ob.hitInset == null ? SELF_BATTLE_CFG.obstacleHitInset : ob.hitInset;
+    const ox = ob.x + oi;
+    const oy = ob.y + oi;
+    const ow = Math.max(4, ob.w - oi * 2);
+    const oh = Math.max(4, ob.h - oi * 2);
+    if (hx < ox + ow && hx + hw > ox &&
+        hy < oy + oh && hy + hh > oy) {
       selfApplyPlayerHit(now);
       return;
     }
@@ -2917,7 +3155,7 @@ function selfCheckHits(now) {
 
 function selfApplyPlayerHit(now) {
   state.selfPlayerHp = clamp(state.selfPlayerHp - SELF_BATTLE_CFG.hitDamage, 0, 100);
-  state.selfHeart.hitUntil = now + SELF_BATTLE_CFG.hitCooldownMs;
+  state.selfHeart.hitUntil = now + SELF_BATTLE_CFG.invulnMs;
   selfUpdateHpBars();
   SFXManager.play("warning", { cooldown: 120 });
   const hEl = $("self-heart");
@@ -2961,10 +3199,20 @@ function selfLoop(ts) {
 
     /* Spawn */
     if (ts >= state.selfNextSpawnAt && state.selfSpawner) {
-      const ob = state.selfSpawner.make();
-      selfAppendObstacleEl(ob);
-      state.selfObstacles.push(ob);
-      state.selfNextSpawnAt = ts + state.selfSpawner.interval;
+      const max = state.selfSpawner.maxObstacles || 99;
+      if (state.selfObstacles.length < max) {
+        const made = state.selfSpawner.make();
+        const obs = Array.isArray(made) ? made : [made];
+        for (const ob of obs) {
+          if (!ob || state.selfObstacles.length >= max) break;
+          selfAppendObstacleEl(ob);
+          state.selfObstacles.push(ob);
+        }
+      }
+      const interval = typeof state.selfSpawner.interval === "function"
+        ? state.selfSpawner.interval()
+        : state.selfSpawner.interval;
+      state.selfNextSpawnAt = ts + interval;
     }
 
     /* Move + collide */
@@ -2977,7 +3225,7 @@ function selfLoop(ts) {
     }
   } else if (state.selfBattlePhase === "attackMeter" && state.selfAttackMeterActive) {
     /* Bounce a 0..1 cursor along the meter at a steady rate. */
-    state.selfMeterT += state.selfMeterDir * dt * 1.4;
+    state.selfMeterT += state.selfMeterDir * dt * SELF_BATTLE_CFG.meterSpeed;
     if (state.selfMeterT >= 1) { state.selfMeterT = 1; state.selfMeterDir = -1; }
     if (state.selfMeterT <= 0) { state.selfMeterT = 0; state.selfMeterDir = 1; }
     const cur = $("self-meter-cursor");
@@ -3005,13 +3253,16 @@ function selfBeginEnemyPhase() {
   const dur = SELF_BATTLE_CFG.turnDurationMs[Math.min(state.selfBattleTurn - 1, SELF_BATTLE_CFG.turnDurationMs.length - 1)];
   const now = performance.now();
   state.selfTurnEndAt = now + dur;
-  state.selfNextSpawnAt = now + 350;
+  state.selfNextSpawnAt = now + 220;
   selfWriteNarration(SELF_BATTLE_LINES.turnLine[state.selfBattleTurn - 1] || "");
 }
 
 function selfEnterPlayerCommand() {
   state.selfBattlePhase = "playerCommand";
   selfSetPhaseLabel("YOUR TURN");
+  state.selfAttackMeterActive = false;
+  state.selfAttackInputReady = false;
+  state.selfAttackCommitted = false;
   /* Clear any lingering obstacle from frame */
   state.selfObstacles.forEach(ob => { if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el); });
   state.selfObstacles = [];
@@ -3034,6 +3285,7 @@ function selfRenderCommandFocus() {
    "にげない" → small fixed dmg + slight damage reduction this round.
    All three move the battle forward (no skip / no escape). */
 function selfPickCommand() {
+  if (state.selfAttackCommitted) return;
   const lis = document.querySelectorAll("#self-command-list .self-command");
   const li = lis[state.selfCommandIdx];
   const cmd = li ? li.dataset.cmd : "attack";
@@ -3055,24 +3307,37 @@ function selfBeginAttackMeter() {
   state.selfMeterT = 0;
   state.selfMeterDir = 1;
   state.selfAttackMeterActive = true;
+  state.selfAttackInputReady = false;
+  state.selfAttackCommitted = false;
   const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
   const am = $("self-attack-meter"); if (am) am.classList.remove("hidden");
+  selfTrackTimer(setTimeout(() => {
+    if (state.selfBattleActive && state.selfBattlePhase === "attackMeter" &&
+        state.selfAttackMeterActive && !state.selfAttackCommitted) {
+      state.selfAttackInputReady = true;
+    }
+  }, SELF_BATTLE_CFG.attackInputDelayMs));
 }
 
 function selfCommitAttackMeter() {
   if (!state.selfAttackMeterActive) return;
-  state.selfAttackMeterActive = false;
-  /* Damage curve: peak is now higher, and even a poor hit moves the fight. */
+  if (!state.selfAttackInputReady || state.selfAttackCommitted) return;
+  /* Damage curve: deliberate timing matters; edge hits cannot win in 5 turns. */
   const dist = Math.abs(state.selfMeterT - 0.5); /* 0..0.5 */
-  const closeness = clamp(1 - dist * 2, 0, 1);   /* 1 at center */
-  const dmg = Math.round(
-    SELF_BATTLE_CFG.attackMinDamage +
-    closeness * (SELF_BATTLE_CFG.attackMaxDamage - SELF_BATTLE_CFG.attackMinDamage)
-  );
+  const dmgTable = SELF_BATTLE_CFG.timingDamage;
+  let dmg = dmgTable.miss;
+  if (dist <= 0.08) dmg = dmgTable.perfect;
+  else if (dist <= 0.18) dmg = dmgTable.good;
+  else if (dist <= 0.32) dmg = dmgTable.ok;
   selfCommitFixedAttack(dmg);
 }
 
 function selfCommitFixedAttack(dmg) {
+  if (state.selfAttackCommitted) return;
+  state.selfAttackCommitted = true;
+  state.selfAttackInputReady = false;
+  state.selfAttackMeterActive = false;
+  state.selfBattlePhase = "attackResolving";
   const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
   const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
   state.selfEnemyHp = clamp(state.selfEnemyHp - dmg, 0, 100);
@@ -3109,6 +3374,8 @@ function selfCommitFixedAttack(dmg) {
 function selfEndBattle(outcome) {
   state.selfBattlePhase = "result";
   state.selfAttackMeterActive = false;
+  state.selfAttackInputReady = false;
+  state.selfAttackCommitted = true;
   /* Stop the per-frame loop */
   if (state.selfAnimationFrame) {
     try { cancelAnimationFrame(state.selfAnimationFrame); } catch (e) {}
@@ -3161,6 +3428,8 @@ function selfCleanup() {
   state.selfBattleMode = false;
   state.selfBattlePhase = null;
   state.selfAttackMeterActive = false;
+  state.selfAttackInputReady = false;
+  state.selfAttackCommitted = false;
   state.selfKeys = {};
   state.selfObstacles.forEach(ob => { if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el); });
   state.selfObstacles = [];
@@ -3176,10 +3445,12 @@ function startSelfBattle() {
   /* Hard-reset state */
   state.selfBattleActive = true;
   state.selfBattleTurn = 1;
-  state.selfPlayerHp = 100;
-  state.selfEnemyHp = 100;
+  state.selfPlayerHp = SELF_BATTLE_CFG.playerHp;
+  state.selfEnemyHp = SELF_BATTLE_CFG.enemyHp;
   state.selfBattlePhase = "intro";
   state.selfAttackMeterActive = false;
+  state.selfAttackInputReady = false;
+  state.selfAttackCommitted = false;
   state.selfKeys = {};
   state.selfObstacles = [];
   state.selfTimers = [];

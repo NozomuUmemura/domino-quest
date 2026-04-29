@@ -1210,9 +1210,11 @@ body.kumon-active #dialog-speaker {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.35));
-  will-change: transform;
+  will-change: left, top, rotate;
 }
-.self-obstacle.spin { animation: selfSpin 1.0s linear infinite; }
+.self-obstacle.spin {
+  animation: selfSpin var(--self-spin-duration, 0.75s) linear infinite;
+}
 .self-arena-overlay {
   position: absolute; inset: 0;
   pointer-events: none;
@@ -1336,8 +1338,8 @@ body.kumon-active #dialog-speaker {
 }
 .self-attack-meter .sm-zone-good {
   position: absolute;
-  left: 42%; top: 0;
-  width: 16%; height: 100%;
+  left: 46%; top: 0;
+  width: 8%; height: 100%;
   background: rgba(255, 210, 74, 0.18);
   border-left: 1px dashed rgba(255, 210, 74, 0.6);
   border-right: 1px dashed rgba(255, 210, 74, 0.6);
@@ -1379,8 +1381,8 @@ body.kumon-active #dialog-speaker {
   100% { transform: translate(0, 0); }
 }
 @keyframes selfSpin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from { rotate: 0deg; }
+  to   { rotate: var(--self-spin-end, 360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .self-obstacle.spin { animation-duration: 4s; }
