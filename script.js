@@ -13,13 +13,29 @@ const ASSETS = {
     kondo: "./Kondo.m4a",
     sten:  "./Sten.m4a",
     qcd:   "./QCD.m4a",
-    kumon: "./Kumon.m4a"
-  }
+    kumon: "./Kumon.m4a",
+    self:  "./Self.m4a"
+  },
+  /* Mech-themed parts used as 弾幕 obstacles in the self battle.
+     Files load with onerror tolerance — if any are missing, the obstacle
+     simply renders as a plain outlined square (handled at obstacle build time). */
+  selfObstacleSprites: [
+    "./Bolt.png",
+    "./Spanner.png",
+    "./Gear.png",
+    "./Screw.png",
+    "./Board.png"
+  ]
 };
 
-const SOUND_PREF_KEY    = "domino-quest-sound-enabled";
-const CLEARED_KEY       = "domino-quest-cleared";
-const QCD_RESULT_KEY    = "domino-quest-qcd-result";
+const SOUND_PREF_KEY            = "domino-quest-sound-enabled";
+const CLEARED_KEY               = "domino-quest-cleared";
+const QCD_RESULT_KEY            = "domino-quest-qcd-result";
+const SECRET_HINT_SHOWN_KEY     = "domino-quest-domino-hint-shown";
+const KUMON_CLEARED_KEY         = "domino-quest-kumon-cleared";
+const SELF_HINT_SHOWN_KEY       = "domino-quest-self-hint-shown";
+const SELF_BATTLE_CLEARED_KEY   = "domino-quest-self-battle-cleared";
+const SELF_BATTLE_LOSSES_KEY    = "domino-quest-self-battle-losses";
 
 const BASE_TITLE = "DOMINO Quest";
 const AWAY_TITLE = "Come Back!!";
@@ -29,7 +45,7 @@ const AudioManager = {
   enabled: false,
   currentKey: null,
   tracks: {},
-  volumes: { home: 0.35, kano: 0.4, kondo: 0.4, sten: 0.4, qcd: 0.4, kumon: 0.45 },
+  volumes: { home: 0.35, kano: 0.4, kondo: 0.4, sten: 0.4, qcd: 0.4, kumon: 0.45, self: 0.45 },
   _fadeTimers: { out: null, in: null },
 
   init() {
@@ -1098,6 +1114,27 @@ const state = {
   kumonActive: false,
   kumonEnded: false,
 
+  /* Self battle ("自分自身との戦い") — completely separate from QCD battle */
+  selfBattleMode: false,    /* requested via title input "自分" / "jibun" */
+  selfBattleActive: false,  /* overlay & loop currently running */
+  selfBattleTurn: 0,        /* 1..5 */
+  selfPlayerHp: 100,
+  selfEnemyHp: 100,
+  selfBattlePhase: null,    /* "intro" | "enemyTaunt" | "enemy" | "playerCommand" | "attackMeter" | "result" */
+  selfKeys: {},             /* arena movement keys, kept separate from main keys */
+  selfObstacles: [],        /* live obstacle objects with x,y,w,h,vx,vy,sprite */
+  selfAnimationFrame: 0,    /* requestAnimationFrame id (0 when stopped) */
+  selfAttackMeterActive: false,
+  selfHeart: { x: 220, y: 96, hitUntil: 0 },
+  selfArenaSize: { w: 480, h: 220 },
+  selfTurnEndAt: 0,         /* timestamp when current enemy phase ends */
+  selfNextSpawnAt: 0,
+  selfMeterT: 0,            /* 0..1, drives sm-cursor position */
+  selfMeterDir: 1,
+  selfCommandIdx: 0,
+  selfLastTickAt: 0,
+  selfTimers: [],           /* setTimeout ids tracked for cleanup */
+
   /* Idle event */
   lastActivityAt: 0,
   lastIdleEventAt: 0
@@ -1698,12 +1735,13 @@ function endDialog() {
   /* Wipe state and DOM so the next conversation starts truly clean */
   resetDialogUI();
   /* Resume Home BGM if a character-specific track was playing
-     (but not during the QCD battle / Kumon mode, which have their own tracks) */
-  if (!state.battle && !state.kumonActive &&
+     (but not during the QCD battle / Kumon mode / Self battle, which have their own tracks) */
+  if (!state.battle && !state.kumonActive && !state.selfBattleActive &&
       AudioManager.currentKey &&
       AudioManager.currentKey !== "home" &&
       AudioManager.currentKey !== "qcd" &&
-      AudioManager.currentKey !== "kumon") {
+      AudioManager.currentKey !== "kumon" &&
+      AudioManager.currentKey !== "self") {
     AudioManager.resumeHome();
   }
   if (typeof onDone === "function") onDone();
@@ -1890,21 +1928,23 @@ function closeEnding() {
   state.endingOpen = false;
   $("ending").classList.add("hidden");
   AudioManager.stop();
-  /* If this is the very first clear, show the secret hint popup
-     before returning to the title. Subsequent clears go straight to title. */
+  /* Show the domino hint after the first clear. Use a separate shown flag so
+     players who cleared before a broken hint build can still receive it. */
   const wasCleared = isCleared();
+  const shouldShowSecretHint = !wasCleared || !isSecretHintShown();
   try { localStorage.setItem(CLEARED_KEY, "true"); } catch (e) {}
   setBaseTitle(BASE_TITLE);
-  if (!wasCleared) {
-    openSecretHint();
+  showScreen("title");
+  if (shouldShowSecretHint) {
+    setTimeout(() => openSecretHint({ force: true }), 160);
     return;
   }
-  showScreen("title");
 }
 
-function openSecretHint() {
+function openSecretHint(options) {
   const ov = $("secret-hint");
   if (!ov) { showScreen("title"); return; }
+  if (isSecretHintShown() && !(options && options.force)) { showScreen("title"); return; }
   ov.classList.remove("hidden");
   SFXManager.play("confirm", { cooldown: 200 });
 }
@@ -1912,12 +1952,47 @@ function closeSecretHint() {
   const ov = $("secret-hint");
   if (ov) ov.classList.add("hidden");
   SFXManager.play("cancel");
+  try { localStorage.setItem(SECRET_HINT_SHOWN_KEY, "true"); } catch (e) {}
   showScreen("title");
 }
 
 function isCleared() {
   try { return localStorage.getItem(CLEARED_KEY) === "true"; }
   catch (e) { return false; }
+}
+
+function isSecretHintShown() {
+  try { return localStorage.getItem(SECRET_HINT_SHOWN_KEY) === "true"; }
+  catch (e) { return false; }
+}
+
+function isKumonCleared() {
+  try { return localStorage.getItem(KUMON_CLEARED_KEY) === "true"; }
+  catch (e) { return false; }
+}
+
+function isSelfHintShown() {
+  try { return localStorage.getItem(SELF_HINT_SHOWN_KEY) === "true"; }
+  catch (e) { return false; }
+}
+
+function isSelfBattleCleared() {
+  try { return localStorage.getItem(SELF_BATTLE_CLEARED_KEY) === "true"; }
+  catch (e) { return false; }
+}
+
+function getSelfBattleLosses() {
+  try {
+    const v = parseInt(localStorage.getItem(SELF_BATTLE_LOSSES_KEY) || "0", 10);
+    return isNaN(v) ? 0 : v;
+  } catch (e) { return 0; }
+}
+
+function bumpSelfBattleLosses() {
+  try {
+    const v = getSelfBattleLosses() + 1;
+    localStorage.setItem(SELF_BATTLE_LOSSES_KEY, String(v));
+  } catch (e) {}
 }
 
 function loadQcdResult() {
@@ -1981,6 +2056,30 @@ document.addEventListener("keydown", e => {
   if ((k === "z" || k === "Z") && !wasDown) state.zHeldSince = Date.now();
 
   /* Priority order of overlays */
+  /* Self-hint popup (after kumon clear) — close on Z/X/Enter/Escape */
+  const selfHintEl = document.getElementById("self-hint");
+  if (selfHintEl && !selfHintEl.classList.contains("hidden")) {
+    if (k === "z" || k === "Z" || k === "x" || k === "X" || k === "Enter" || k === "Escape") closeSelfHint();
+    return;
+  }
+  /* Self battle takes priority over everything else when active */
+  if (state.selfBattleActive) {
+    /* Track arena keys for the loop (case-insensitive WASD + arrows) */
+    state.selfKeys[k] = true;
+    if (state.selfBattlePhase === "playerCommand") {
+      const lis = document.querySelectorAll("#self-command-list .self-command");
+      const len = lis.length || 1;
+      if (k === "ArrowUp")   { state.selfCommandIdx = (state.selfCommandIdx - 1 + len) % len; selfRenderCommandFocus(); SFXManager.play("cursor", { cooldown: 60 }); }
+      if (k === "ArrowDown") { state.selfCommandIdx = (state.selfCommandIdx + 1) % len; selfRenderCommandFocus(); SFXManager.play("cursor", { cooldown: 60 }); }
+      if ((k === "z" || k === "Z") && !wasDown) selfPickCommand();
+    } else if (state.selfBattlePhase === "attackMeter") {
+      if ((k === "z" || k === "Z") && !wasDown) selfCommitAttackMeter();
+    }
+    /* During "enemy" / "intro" / "result", arrow keys are silently consumed
+       above. We never expose ESC-to-quit so the player must see the round
+       through (per spec: "敗北/勝利まで進む設計でOK"). */
+    return;
+  }
   /* Secret-hint popup (after first clear) */
   const hintEl = document.getElementById("secret-hint");
   if (hintEl && !hintEl.classList.contains("hidden")) {
@@ -2061,6 +2160,13 @@ document.addEventListener("keydown", e => {
 
 document.addEventListener("keyup", e => {
   state.keys[e.key] = false;
+  if (state.selfBattleActive) state.selfKeys[e.key] = false;
+});
+
+/* Lose all held arrow keys when the tab loses focus — otherwise the
+   self heart can drift forever after an alt-tab. */
+window.addEventListener("blur", () => {
+  state.selfKeys = {};
 });
 
 /* =========================================================
@@ -2071,13 +2177,22 @@ $("btn-start").addEventListener("click", () => {
   const name = raw || "新人";
   state.name = name.substring(0, 10);
   SFXManager.play("confirm");
-  /* Hidden command: name = "domino" + cleared once → Kumon mode (skip normal play) */
+  /* Hidden command #2: name = "自分" / "jibun" + kumon cleared → Self battle */
+  if (isKumonCleared() && isSelfName(raw)) {
+    state.selfBattleMode = true;
+    state.kumonMode = false;
+    enterSoundScreen("self");
+    return;
+  }
+  /* Hidden command #1: name = "domino" + cleared once → Kumon mode (skip normal play) */
   if (isCleared() && isDominoName(raw)) {
     state.kumonMode = true;
+    state.selfBattleMode = false;
     enterSoundScreen("kumon");
     return;
   }
   state.kumonMode = false;
+  state.selfBattleMode = false;
   enterSoundScreen("new");
 });
 
@@ -2086,8 +2201,12 @@ const _nameInput = $("player-name");
 if (_nameInput) {
   _nameInput.addEventListener("input", () => {
     if (state.screen !== "title") return;
-    if (!isCleared()) return;
-    if (isDominoName(_nameInput.value)) showToast("??");
+    /* Self battle hint takes priority when both are unlocked */
+    if (isKumonCleared() && isSelfName(_nameInput.value)) {
+      showSelfToast("……自分？");
+      return;
+    }
+    if (isCleared() && isDominoName(_nameInput.value)) showToast("??");
   });
 }
 
@@ -2136,6 +2255,11 @@ function confirmSoundScreen() {
     startKumonMode();
     return;
   }
+  if (mode === "self") {
+    /* Hidden Self battle — skip normal play entirely */
+    startSelfBattle();
+    return;
+  }
   if (mode === "new") {
     state.chapter = 1;
     state.stats = { ...GAME_DATA.defaultStats };
@@ -2161,6 +2285,8 @@ function confirmSoundScreen() {
 
 function cancelSoundScreen() {
   state.soundScreen.mode = null;
+  state.kumonMode = false;
+  state.selfBattleMode = false;
   showScreen("title");
 }
 
@@ -2408,6 +2534,8 @@ function startKumonMode() {
 
 function finishKumonMode() {
   state.kumonEnded = true;
+  /* Mark kumon as fully cleared so the self-battle gate can open */
+  try { localStorage.setItem(KUMON_CLEARED_KEY, "true"); } catch (e) {}
   /* Show ending tag, then return to title shortly */
   const endTag = $("kumon-end");
   if (endTag) endTag.classList.remove("hidden");
@@ -2420,8 +2548,698 @@ function finishKumonMode() {
     AudioManager.stop();
     setBaseTitle(BASE_TITLE);
     showScreen("title");
+    /* Show this hint at the end of Kumon even if an earlier broken build
+       already wrote the "shown" flag before the popup was actually seen. */
+    setTimeout(() => openSelfHint({ force: true }), 320);
   }, 2400);
 }
+
+/* =========================================================
+   SELF BATTLE — "自分自身との戦い"
+   ---------------------------------------------------------
+   A self-contained 弾幕避け + ターン制 mini-battle, isolated from
+   the main game loop, the QCD battle, and the Kumon ending.
+   Triggered by NAME = "自分" / "jibun" once Kumon mode has been
+   seen to its end (KUMON_CLEARED_KEY === "true").
+========================================================= */
+
+/* Match either the kanji "自分" or the romanised "jibun".
+   Trim and lowercase so casing/whitespace don't matter. */
+function isSelfName(v) {
+  const s = ((v || "") + "").trim().toLowerCase();
+  return s === "自分" || s === "jibun";
+}
+
+/* Toast variant for the self-name detection on the title screen. */
+function showSelfToast(msg) {
+  const t = $("toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  t.classList.remove("toast-hint");
+  t.classList.add("toast-self");
+  clearTimeout(showSelfToast._t);
+  showSelfToast._t = setTimeout(() => {
+    t.classList.add("hidden");
+    t.classList.remove("toast-self");
+  }, 1800);
+}
+
+/* ---------- Self hint popup ---------- */
+function openSelfHint(options) {
+  const ov = $("self-hint");
+  if (!ov) return;
+  if (isSelfHintShown() && !(options && options.force)) return;
+  ov.classList.remove("hidden");
+  SFXManager.play("confirm", { cooldown: 200 });
+}
+function closeSelfHint() {
+  const ov = $("self-hint");
+  if (ov) ov.classList.add("hidden");
+  SFXManager.play("cancel");
+  /* Mark it only after the player closes it, not when it first opens. */
+  try { localStorage.setItem(SELF_HINT_SHOWN_KEY, "true"); } catch (e) {}
+}
+
+/* ---------- Self battle: setup, run, teardown ---------- */
+const SELF_BATTLE_CFG = {
+  arenaW: 480,
+  arenaH: 220,
+  heartW: 32,
+  heartH: 28,
+  /* Hit cushion: shrink hitbox a little so the player has fair iframes. */
+  heartHitInset: 6,
+  heartSpeed: 230,        /* px/s */
+  hitDamage: 10,
+  hitCooldownMs: 700,
+  attackMinDamage: 20,
+  attackMaxDamage: 42,
+  watchDamage: 18,
+  standDamage: 20,
+  /* Per-turn enemy phase length (ms) — kept "難しいけど勝てる" shape */
+  turnDurationMs: [9000, 9500, 10000, 10500, 11000],
+  turns: 5
+};
+
+const SELF_BATTLE_LINES = {
+  intro: [
+    "最後に出てきたのは、誰でもない。",
+    "自分自身だった。",
+    "いちばん見たくなかった相手が、いちばん近くにいた。"
+  ],
+  enemyTaunt: [
+    "まだ、言い訳を探す？",
+    "できない理由なら、もう何回も聞いた。",
+    "納期より、品質より、コストより、まず自分の設計思想だろ。",
+    "逃げるな。ここは会議室じゃない。",
+    "お前が一番、お前の足を止めてる。"
+  ],
+  turnLine: [
+    "まずは避けてみろ。",
+    "想定外？ いつもそう言ってるな。",
+    "仕様変更は突然来る。",
+    "焦ると、見えるものも見えなくなる。",
+    "最後くらい、自分で決めろ。"
+  ],
+  command: [
+    "向き合うか。決めるか。進めるか。",
+    "迷っても、選んだ手だけが残る。",
+    "ここで止まるな。",
+    "深呼吸。フォームが崩れる前に。",
+    "次の一手を、自分で押せ。"
+  ],
+  victory: [
+    "自分自身に勝った、というより",
+    "少しだけ、扱い方を覚えた。",
+    "弱さも、迷いも、ログとして残していい。",
+    "それでも、次の一歩は自分で押せる。",
+    "DOMINO Quest — true self ending"
+  ],
+  defeat: [
+    "倒された。",
+    "でも、これは終わりではない。",
+    "自分自身との戦いは、だいたい再戦できる。",
+    "もう一度、NAME に『自分』と入力すればいい。"
+  ],
+  stalemate: [
+    "削り切れなかった。",
+    "今日のお前は、ここまでだ。",
+    "5ターン。 設計思想が、まだ揺れてる。",
+    "もう一度、NAME に『自分』と入力すればいい。"
+  ]
+};
+
+function selfTrackTimer(id) { state.selfTimers.push(id); return id; }
+function selfClearTimers() {
+  while (state.selfTimers.length) {
+    const id = state.selfTimers.pop();
+    try { clearTimeout(id); } catch (e) {}
+  }
+}
+
+function selfSetPhaseLabel(text) {
+  const el = $("self-phase-label");
+  if (el) el.textContent = text || "—";
+}
+function selfSetTurnLabel() {
+  const el = $("self-turn-label");
+  if (el) el.textContent = "TURN " + state.selfBattleTurn + " / " + SELF_BATTLE_CFG.turns;
+}
+function selfWriteNarration(text) {
+  const el = $("self-narration");
+  if (el) el.textContent = text || "";
+}
+
+/* Sequentially type a list of lines into the narration box.
+   Lines are not actually typed character-by-character — to stay consistent
+   with the existing dialog engine, we write them in full and pause between. */
+function selfShowLines(lines, onDone, perLineMs) {
+  const ms = perLineMs || 1500;
+  let i = 0;
+  const step = () => {
+    if (!state.selfBattleActive) return; /* aborted */
+    if (i >= lines.length) { if (onDone) onDone(); return; }
+    selfWriteNarration(lines[i]);
+    SFXManager.play("dialogueDark", { cooldown: 80 });
+    i += 1;
+    selfTrackTimer(setTimeout(step, ms));
+  };
+  step();
+}
+
+/* Update visible HP bars + numbers. */
+function selfUpdateHpBars() {
+  const pBar = $("self-player-hp-bar");
+  const pNum = $("self-player-hp-num");
+  const eBar = $("self-enemy-hp-bar");
+  const eNum = $("self-enemy-hp-num");
+  const ph = clamp(state.selfPlayerHp, 0, 100);
+  const eh = clamp(state.selfEnemyHp, 0, 100);
+  if (pBar) pBar.style.width = ph + "%";
+  if (pNum) pNum.textContent = ph;
+  if (eBar) eBar.style.width = eh + "%";
+  if (eNum) eNum.textContent = eh;
+}
+
+function selfPlaceHeart() {
+  const el = $("self-heart");
+  if (!el) return;
+  el.style.transform = `translate(${state.selfHeart.x}px, ${state.selfHeart.y}px)`;
+}
+
+/* Reset arena DOM + heart position for a fresh phase. */
+function selfResetArena() {
+  state.selfObstacles = [];
+  const ob = $("self-obstacles");
+  if (ob) ob.innerHTML = "";
+  state.selfHeart.x = (SELF_BATTLE_CFG.arenaW - SELF_BATTLE_CFG.heartW) / 2;
+  state.selfHeart.y = (SELF_BATTLE_CFG.arenaH - SELF_BATTLE_CFG.heartH) / 2;
+  state.selfHeart.hitUntil = 0;
+  selfPlaceHeart();
+}
+
+/* ---------- Obstacle factory per turn ----------
+   Returns spawn config: { interval (ms), make() -> obstacle } */
+function selfSpawnerForTurn(turn) {
+  const W = SELF_BATTLE_CFG.arenaW;
+  const H = SELF_BATTLE_CFG.arenaH;
+  const sprites = ASSETS.selfObstacleSprites;
+  const pick = (i) => sprites[i % sprites.length];
+
+  if (turn === 1) {
+    /* 横方向にボルトが流れてくる */
+    return {
+      interval: 620,
+      make() {
+        return {
+          x: W + 8, y: 20 + Math.random() * (H - 40),
+          w: 26, h: 26,
+          vx: -(150 + Math.random() * 30), vy: 0,
+          sprite: pick(0), spin: false
+        };
+      }
+    };
+  }
+  if (turn === 2) {
+    /* 上からレンチ(=Spanner)が落ちてくる */
+    return {
+      interval: 520,
+      make() {
+        return {
+          x: 10 + Math.random() * (W - 30), y: -28,
+          w: 26, h: 26,
+          vx: 0, vy: 150 + Math.random() * 40,
+          sprite: pick(1), spin: false
+        };
+      }
+    };
+  }
+  if (turn === 3) {
+    /* 歯車が斜めに移動する */
+    return {
+      interval: 700,
+      make() {
+        const fromLeft = Math.random() < 0.5;
+        const dirX = fromLeft ? 1 : -1;
+        const speedX = 110 + Math.random() * 40;
+        const speedY = 50  + Math.random() * 50;
+        return {
+          x: fromLeft ? -28 : W + 8,
+          y: 10 + Math.random() * (H - 60),
+          w: 28, h: 28,
+          vx: dirX * speedX,
+          vy: (Math.random() < 0.5 ? -1 : 1) * speedY,
+          sprite: pick(2), spin: true
+        };
+      }
+    };
+  }
+  if (turn === 4) {
+    /* ボルト(横) と ナット(=Screw 縦) が交差 */
+    let toggle = 0;
+    return {
+      interval: 480,
+      make() {
+        toggle = (toggle + 1) % 2;
+        if (toggle === 0) {
+          return {
+            x: W + 8, y: 20 + Math.random() * (H - 40),
+            w: 26, h: 26,
+            vx: -(170 + Math.random() * 30), vy: 0,
+            sprite: pick(0), spin: false
+          };
+        }
+        return {
+          x: 10 + Math.random() * (W - 30), y: -28,
+          w: 24, h: 24,
+          vx: 0, vy: 170 + Math.random() * 30,
+          sprite: pick(3), spin: true
+        };
+      }
+    };
+  }
+  /* turn 5: 複数のメカパーツが少し速めに動く (mix all sprites) */
+  return {
+    interval: 420,
+    make() {
+      const mode = Math.floor(Math.random() * 4);
+      const idx = Math.floor(Math.random() * sprites.length);
+      const sprite = sprites[idx];
+      if (mode === 0) {
+        return { x: W + 8, y: 10 + Math.random() * (H - 30), w: 26, h: 26,
+                 vx: -(180 + Math.random() * 40), vy: (Math.random() - 0.5) * 50,
+                 sprite, spin: idx % 2 === 0 };
+      }
+      if (mode === 1) {
+        return { x: -28, y: 10 + Math.random() * (H - 30), w: 26, h: 26,
+                 vx: +(170 + Math.random() * 40), vy: (Math.random() - 0.5) * 50,
+                 sprite, spin: idx % 2 === 0 };
+      }
+      if (mode === 2) {
+        return { x: 10 + Math.random() * (W - 30), y: -28, w: 24, h: 24,
+                 vx: (Math.random() - 0.5) * 60, vy: 180 + Math.random() * 40,
+                 sprite, spin: idx % 2 === 0 };
+      }
+      /* diagonal sweep */
+      const fromLeft = Math.random() < 0.5;
+      return { x: fromLeft ? -28 : SELF_BATTLE_CFG.arenaW + 8,
+               y: 10 + Math.random() * (SELF_BATTLE_CFG.arenaH - 60),
+               w: 28, h: 28,
+               vx: (fromLeft ? 1 : -1) * (140 + Math.random() * 50),
+               vy: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 50),
+               sprite, spin: true };
+    }
+  };
+}
+
+/* Render a single new obstacle into the arena DOM.
+   Position is driven by left/top so the optional .spin CSS animation
+   (which owns `transform`) doesn't fight us. */
+function selfAppendObstacleEl(ob) {
+  const layer = $("self-obstacles");
+  if (!layer) return;
+  const el = document.createElement("img");
+  el.className = "self-obstacle" + (ob.spin ? " spin" : "");
+  el.src = ob.sprite;
+  el.alt = "";
+  el.style.width = ob.w + "px";
+  el.style.height = ob.h + "px";
+  el.style.left = ob.x + "px";
+  el.style.top  = ob.y + "px";
+  /* Graceful fallback: if sprite is missing, render as outlined block. */
+  el.onerror = () => {
+    el.removeAttribute("src");
+    el.style.background = "#222";
+    el.style.border = "2px solid #fff";
+  };
+  ob.el = el;
+  layer.appendChild(el);
+}
+
+/* Tick the per-frame obstacle simulation. dt is in seconds. */
+function selfTickObstacles(dt) {
+  const W = SELF_BATTLE_CFG.arenaW;
+  const H = SELF_BATTLE_CFG.arenaH;
+  const live = [];
+  for (const ob of state.selfObstacles) {
+    ob.x += ob.vx * dt;
+    ob.y += ob.vy * dt;
+    /* Cull when fully off-screen with margin */
+    if (ob.x < -60 || ob.x > W + 60 || ob.y < -60 || ob.y > H + 60) {
+      if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el);
+      continue;
+    }
+    if (ob.el) {
+      ob.el.style.left = ob.x + "px";
+      ob.el.style.top  = ob.y + "px";
+    }
+    live.push(ob);
+  }
+  state.selfObstacles = live;
+}
+
+/* AABB overlap with shrunken heart hitbox. */
+function selfCheckHits(now) {
+  if (now < state.selfHeart.hitUntil) return; /* iframes */
+  const inset = SELF_BATTLE_CFG.heartHitInset;
+  const hx = state.selfHeart.x + inset;
+  const hy = state.selfHeart.y + inset;
+  const hw = SELF_BATTLE_CFG.heartW - inset * 2;
+  const hh = SELF_BATTLE_CFG.heartH - inset * 2;
+  for (const ob of state.selfObstacles) {
+    if (hx < ob.x + ob.w && hx + hw > ob.x &&
+        hy < ob.y + ob.h && hy + hh > ob.y) {
+      selfApplyPlayerHit(now);
+      return;
+    }
+  }
+}
+
+function selfApplyPlayerHit(now) {
+  state.selfPlayerHp = clamp(state.selfPlayerHp - SELF_BATTLE_CFG.hitDamage, 0, 100);
+  state.selfHeart.hitUntil = now + SELF_BATTLE_CFG.hitCooldownMs;
+  selfUpdateHpBars();
+  SFXManager.play("warning", { cooldown: 120 });
+  const hEl = $("self-heart");
+  if (hEl) {
+    hEl.classList.remove("hurt");
+    void hEl.offsetWidth; /* restart anim */
+    hEl.classList.add("hurt");
+  }
+  const arena = $("self-battle-arena");
+  if (arena) {
+    arena.classList.remove("shake");
+    void arena.offsetWidth;
+    arena.classList.add("shake");
+  }
+  if (state.selfPlayerHp <= 0) {
+    selfEndBattle("defeat");
+  }
+}
+
+/* Main per-frame loop while overlay is up. */
+function selfLoop(ts) {
+  if (!state.selfBattleActive) { state.selfAnimationFrame = 0; return; }
+  const last = state.selfLastTickAt || ts;
+  let dt = (ts - last) / 1000;
+  if (dt > 0.06) dt = 0.06; /* clamp big stalls (tab switch) */
+  state.selfLastTickAt = ts;
+
+  if (state.selfBattlePhase === "enemy") {
+    /* Player movement */
+    const k = state.selfKeys;
+    let dx = 0, dy = 0;
+    if (k.ArrowLeft  || k.a || k.A) dx -= 1;
+    if (k.ArrowRight || k.d || k.D) dx += 1;
+    if (k.ArrowUp    || k.w || k.W) dy -= 1;
+    if (k.ArrowDown  || k.s || k.S) dy += 1;
+    if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+    const sp = SELF_BATTLE_CFG.heartSpeed * dt;
+    state.selfHeart.x = clamp(state.selfHeart.x + dx * sp, 0, SELF_BATTLE_CFG.arenaW - SELF_BATTLE_CFG.heartW);
+    state.selfHeart.y = clamp(state.selfHeart.y + dy * sp, 0, SELF_BATTLE_CFG.arenaH - SELF_BATTLE_CFG.heartH);
+    selfPlaceHeart();
+
+    /* Spawn */
+    if (ts >= state.selfNextSpawnAt && state.selfSpawner) {
+      const ob = state.selfSpawner.make();
+      selfAppendObstacleEl(ob);
+      state.selfObstacles.push(ob);
+      state.selfNextSpawnAt = ts + state.selfSpawner.interval;
+    }
+
+    /* Move + collide */
+    selfTickObstacles(dt);
+    selfCheckHits(ts);
+
+    /* End-of-phase check */
+    if (ts >= state.selfTurnEndAt) {
+      selfEnterPlayerCommand();
+    }
+  } else if (state.selfBattlePhase === "attackMeter" && state.selfAttackMeterActive) {
+    /* Bounce a 0..1 cursor along the meter at a steady rate. */
+    state.selfMeterT += state.selfMeterDir * dt * 1.4;
+    if (state.selfMeterT >= 1) { state.selfMeterT = 1; state.selfMeterDir = -1; }
+    if (state.selfMeterT <= 0) { state.selfMeterT = 0; state.selfMeterDir = 1; }
+    const cur = $("self-meter-cursor");
+    if (cur) {
+      const trackW = (cur.parentNode && cur.parentNode.clientWidth) || 100;
+      const px = state.selfMeterT * (trackW - 4);
+      cur.style.transform = `translate(${px}px, 0)`;
+    }
+  }
+
+  state.selfAnimationFrame = requestAnimationFrame(selfLoop);
+}
+
+/* ---------- Phase transitions ---------- */
+function selfBeginEnemyPhase() {
+  state.selfBattlePhase = "enemy";
+  selfSetPhaseLabel("ENEMY ATTACK");
+  /* Reset arena */
+  selfResetArena();
+  /* Hide command/meter */
+  const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
+  const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
+  /* Configure spawner + duration */
+  state.selfSpawner = selfSpawnerForTurn(state.selfBattleTurn);
+  const dur = SELF_BATTLE_CFG.turnDurationMs[Math.min(state.selfBattleTurn - 1, SELF_BATTLE_CFG.turnDurationMs.length - 1)];
+  const now = performance.now();
+  state.selfTurnEndAt = now + dur;
+  state.selfNextSpawnAt = now + 350;
+  selfWriteNarration(SELF_BATTLE_LINES.turnLine[state.selfBattleTurn - 1] || "");
+}
+
+function selfEnterPlayerCommand() {
+  state.selfBattlePhase = "playerCommand";
+  selfSetPhaseLabel("YOUR TURN");
+  /* Clear any lingering obstacle from frame */
+  state.selfObstacles.forEach(ob => { if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el); });
+  state.selfObstacles = [];
+  /* Pick a random ターン中セリフ → command flavour */
+  const cmdLine = SELF_BATTLE_LINES.command[(state.selfBattleTurn - 1) % SELF_BATTLE_LINES.command.length];
+  selfWriteNarration(cmdLine);
+  /* Show command box */
+  state.selfCommandIdx = 0;
+  selfRenderCommandFocus();
+  const cb = $("self-command-box"); if (cb) cb.classList.remove("hidden");
+  const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
+}
+
+function selfRenderCommandFocus() {
+  const lis = document.querySelectorAll("#self-command-list .self-command");
+  lis.forEach((li, i) => li.classList.toggle("active", i === state.selfCommandIdx));
+}
+
+/* "むきあう" → attack meter; "みつめる" → small fixed dmg + read enemy;
+   "にげない" → small fixed dmg + slight damage reduction this round.
+   All three move the battle forward (no skip / no escape). */
+function selfPickCommand() {
+  const lis = document.querySelectorAll("#self-command-list .self-command");
+  const li = lis[state.selfCommandIdx];
+  const cmd = li ? li.dataset.cmd : "attack";
+  SFXManager.play("confirm");
+  if (cmd === "attack") {
+    selfBeginAttackMeter();
+  } else if (cmd === "watch") {
+    /* みつめる: fixed small damage, but commit immediately */
+    selfCommitFixedAttack(SELF_BATTLE_CFG.watchDamage);
+  } else {
+    /* にげない: stand-firm, small damage but quick */
+    selfCommitFixedAttack(SELF_BATTLE_CFG.standDamage);
+  }
+}
+
+function selfBeginAttackMeter() {
+  state.selfBattlePhase = "attackMeter";
+  selfSetPhaseLabel("TIMING");
+  state.selfMeterT = 0;
+  state.selfMeterDir = 1;
+  state.selfAttackMeterActive = true;
+  const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
+  const am = $("self-attack-meter"); if (am) am.classList.remove("hidden");
+}
+
+function selfCommitAttackMeter() {
+  if (!state.selfAttackMeterActive) return;
+  state.selfAttackMeterActive = false;
+  /* Damage curve: peak is now higher, and even a poor hit moves the fight. */
+  const dist = Math.abs(state.selfMeterT - 0.5); /* 0..0.5 */
+  const closeness = clamp(1 - dist * 2, 0, 1);   /* 1 at center */
+  const dmg = Math.round(
+    SELF_BATTLE_CFG.attackMinDamage +
+    closeness * (SELF_BATTLE_CFG.attackMaxDamage - SELF_BATTLE_CFG.attackMinDamage)
+  );
+  selfCommitFixedAttack(dmg);
+}
+
+function selfCommitFixedAttack(dmg) {
+  const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
+  const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
+  state.selfEnemyHp = clamp(state.selfEnemyHp - dmg, 0, 100);
+  selfUpdateHpBars();
+  SFXManager.play("confirm", { cooldown: 80 });
+  /* Enemy hit FX */
+  const enemyBlock = document.querySelector(".self-enemy-block");
+  if (enemyBlock) {
+    enemyBlock.classList.remove("hit");
+    void enemyBlock.offsetWidth;
+    enemyBlock.classList.add("hit");
+  }
+  selfWriteNarration("「" + (state.name || "新人") + "」は自分自身に " + dmg + " のダメージを通した。");
+  /* Decide next: end if enemy dead OR turns exhausted, else next turn */
+  selfTrackTimer(setTimeout(() => {
+    if (!state.selfBattleActive) return;
+    if (state.selfEnemyHp <= 0) { selfEndBattle("victory"); return; }
+    if (state.selfBattleTurn >= SELF_BATTLE_CFG.turns) {
+      selfEndBattle("stalemate"); return;
+    }
+    state.selfBattleTurn += 1;
+    selfSetTurnLabel();
+    /* Brief enemy taunt before next dodge phase */
+    const taunt = SELF_BATTLE_LINES.enemyTaunt[(state.selfBattleTurn - 1) % SELF_BATTLE_LINES.enemyTaunt.length];
+    selfSetPhaseLabel("ENEMY");
+    selfWriteNarration(taunt);
+    selfTrackTimer(setTimeout(() => {
+      if (!state.selfBattleActive) return;
+      selfBeginEnemyPhase();
+    }, 1400));
+  }, 1100));
+}
+
+function selfEndBattle(outcome) {
+  state.selfBattlePhase = "result";
+  state.selfAttackMeterActive = false;
+  /* Stop the per-frame loop */
+  if (state.selfAnimationFrame) {
+    try { cancelAnimationFrame(state.selfAnimationFrame); } catch (e) {}
+    state.selfAnimationFrame = 0;
+  }
+  /* Hide interactive UI */
+  const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
+  const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
+  /* Clear obstacles */
+  state.selfObstacles.forEach(ob => { if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el); });
+  state.selfObstacles = [];
+
+  let lines, victoryAfter = null;
+  if (outcome === "victory") {
+    selfSetPhaseLabel("VICTORY");
+    try { localStorage.setItem(SELF_BATTLE_CLEARED_KEY, "true"); } catch (e) {}
+    lines = SELF_BATTLE_LINES.victory;
+    victoryAfter = () => {
+      /* Special toast on title return */
+      selfTrackTimer(setTimeout(() => showSelfToast("TRUE SELF ENDING unlocked"), 600));
+    };
+  } else if (outcome === "defeat") {
+    selfSetPhaseLabel("DEFEAT");
+    bumpSelfBattleLosses();
+    lines = SELF_BATTLE_LINES.defeat;
+  } else {
+    selfSetPhaseLabel("NOT YET");
+    bumpSelfBattleLosses();
+    lines = SELF_BATTLE_LINES.stalemate;
+  }
+  /* Sequentially reveal end lines, then return to title. */
+  selfShowLines(lines, () => {
+    selfTrackTimer(setTimeout(() => {
+      selfCleanup();
+      showScreen("title");
+      setBaseTitle(BASE_TITLE);
+      if (victoryAfter) victoryAfter();
+    }, 1400));
+  }, 1700);
+}
+
+function selfCleanup() {
+  /* Defensive teardown — safe to call multiple times. */
+  if (state.selfAnimationFrame) {
+    try { cancelAnimationFrame(state.selfAnimationFrame); } catch (e) {}
+    state.selfAnimationFrame = 0;
+  }
+  selfClearTimers();
+  state.selfBattleActive = false;
+  state.selfBattleMode = false;
+  state.selfBattlePhase = null;
+  state.selfAttackMeterActive = false;
+  state.selfKeys = {};
+  state.selfObstacles.forEach(ob => { if (ob.el && ob.el.parentNode) ob.el.parentNode.removeChild(ob.el); });
+  state.selfObstacles = [];
+  const ov = $("self-battle-mode");
+  if (ov) ov.classList.add("hidden");
+  const cb = $("self-command-box"); if (cb) cb.classList.add("hidden");
+  const am = $("self-attack-meter"); if (am) am.classList.add("hidden");
+  AudioManager.stop();
+}
+
+/* Entry point — called from confirmSoundScreen when mode === "self". */
+function startSelfBattle() {
+  /* Hard-reset state */
+  state.selfBattleActive = true;
+  state.selfBattleTurn = 1;
+  state.selfPlayerHp = 100;
+  state.selfEnemyHp = 100;
+  state.selfBattlePhase = "intro";
+  state.selfAttackMeterActive = false;
+  state.selfKeys = {};
+  state.selfObstacles = [];
+  state.selfTimers = [];
+  state.selfLastTickAt = 0;
+  state.selfMeterT = 0;
+  state.selfMeterDir = 1;
+
+  const ov = $("self-battle-mode");
+  if (ov) ov.classList.remove("hidden");
+  selfSetTurnLabel();
+  selfSetPhaseLabel("…");
+  selfUpdateHpBars();
+  selfResetArena();
+
+  setBaseTitle("DOMINO Quest — 自分自身との戦い");
+  AudioManager.switchTo("self");
+
+  /* Start the per-frame loop right away — it idles when phase isn't "enemy". */
+  state.selfAnimationFrame = requestAnimationFrame(selfLoop);
+
+  /* Intro narration → first taunt → first enemy phase */
+  selfShowLines(SELF_BATTLE_LINES.intro, () => {
+    if (!state.selfBattleActive) return;
+    const taunt = SELF_BATTLE_LINES.enemyTaunt[0];
+    selfSetPhaseLabel("ENEMY");
+    selfWriteNarration(taunt);
+    selfTrackTimer(setTimeout(() => {
+      if (!state.selfBattleActive) return;
+      selfBeginEnemyPhase();
+    }, 1500));
+  }, 1700);
+}
+
+/* ---------- Self battle: input ---------- */
+/* Click handlers (commands + meter commit) */
+document.addEventListener("click", (e) => {
+  if (!state.selfBattleActive) return;
+  const cmd = e.target && e.target.closest && e.target.closest(".self-command");
+  if (cmd && state.selfBattlePhase === "playerCommand") {
+    const lis = Array.from(document.querySelectorAll("#self-command-list .self-command"));
+    const i = lis.indexOf(cmd);
+    if (i >= 0) {
+      state.selfCommandIdx = i;
+      selfRenderCommandFocus();
+      selfPickCommand();
+    }
+    return;
+  }
+  if (state.selfBattlePhase === "attackMeter" &&
+      e.target && e.target.closest &&
+      e.target.closest("#self-attack-meter")) {
+    selfCommitAttackMeter();
+  }
+});
+
+/* Hint back button */
+const _selfHintBack = $("self-hint-back");
+if (_selfHintBack) _selfHintBack.addEventListener("click", () => {
+  closeSelfHint();
+});
 
 /* =========================================================
    INIT

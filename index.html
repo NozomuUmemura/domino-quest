@@ -202,7 +202,7 @@
     <div class="hint-box">
       <h2>?? HINT ??</h2>
       <div class="hint-body">
-        <p>NAME を <span class="hint-key">domino</span> にすると…?</p>
+        <p>NAME に <span class="hint-key">domino</span> と入力すると……!?</p>
         <p class="hint-sub">— もう一度、タイトルから試してみよう —</p>
       </div>
       <button id="hint-back" class="btn-retro">TITLE</button>
@@ -227,6 +227,81 @@
     </div>
   </div>
 
+  <!-- ========== SELF HINT (after kumon clear) ========== -->
+  <div id="self-hint" class="overlay hidden">
+    <div class="hint-box self-hint-box">
+      <h2>?? HINT ??</h2>
+      <div class="hint-body">
+        <p class="hint-lead">またまた、HINT</p>
+        <p>NAME に <span class="hint-key self-key">自分</span> と入力すると……!?</p>
+        <p class="hint-sub">— 1週目 / 公文モードを終えた者だけに見える扉 —</p>
+      </div>
+      <button id="self-hint-back" class="btn-retro">TITLE</button>
+    </div>
+  </div>
+
+  <!-- ========== SELF BATTLE MODE ========== -->
+  <div id="self-battle-mode" class="overlay hidden">
+    <div class="self-battle-stage">
+      <div class="self-battle-head">
+        <div class="self-turn-label" id="self-turn-label">TURN 1 / 5</div>
+        <div class="self-phase-label" id="self-phase-label">&mdash;</div>
+      </div>
+
+      <div class="self-enemy-row">
+        <div class="self-enemy-block">
+          <div class="p-heart white" id="self-enemy"></div>
+          <div class="self-enemy-label">もう一人の自分</div>
+          <div class="self-battle-hp self-enemy-hp">
+            <div class="hp-label">HP</div>
+            <div class="hp-outer"><div id="self-enemy-hp-bar" class="hp-inner enemy"></div></div>
+            <div id="self-enemy-hp-num" class="hp-num">100</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="self-battle-arena" id="self-battle-arena">
+        <div class="self-heart" id="self-heart"></div>
+        <div class="self-obstacles" id="self-obstacles"></div>
+        <div class="self-arena-overlay" id="self-arena-overlay"></div>
+      </div>
+
+      <div class="self-player-row">
+        <div class="self-player-label">YOU</div>
+        <div class="self-battle-hp self-player-hp">
+          <div class="hp-label">HP</div>
+          <div class="hp-outer"><div id="self-player-hp-bar" class="hp-inner player"></div></div>
+          <div id="self-player-hp-num" class="hp-num">100</div>
+        </div>
+      </div>
+
+      <div class="self-narration" id="self-narration"></div>
+
+      <div class="self-command-box hidden" id="self-command-box">
+        <div class="sc-head">&#9660; コマンド</div>
+        <ul class="self-command-list" id="self-command-list">
+          <li class="self-command active" data-cmd="attack"><span class="heart-cursor"></span>むきあう</li>
+          <li class="self-command" data-cmd="watch"><span class="heart-cursor"></span>みつめる</li>
+          <li class="self-command" data-cmd="stand"><span class="heart-cursor"></span>にげない</li>
+        </ul>
+      </div>
+
+      <div class="self-attack-meter hidden" id="self-attack-meter">
+        <div class="sm-label">タイミング: Z / クリックで決める</div>
+        <div class="sm-track">
+          <div class="sm-zone-good"></div>
+          <div class="sm-cursor" id="self-meter-cursor"></div>
+        </div>
+      </div>
+
+      <p class="menu-hint self-hint-line" id="self-hint-line">
+        <span>&uarr;&darr;&larr;&rarr; / WASD 避ける</span>
+        <span class="sep">|</span>
+        <span>Z 決定</span>
+      </p>
+    </div>
+  </div>
+
   <!-- ========== TOAST ========== -->
   <div id="toast" class="hidden"></div>
 
@@ -248,6 +323,6 @@
   </div>
 
 </div>
-<script src="script.js?v=20260429c"></script>
+<script src="script.js?v=20260429f"></script>
 </body>
 </html>

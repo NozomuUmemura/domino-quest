@@ -1049,6 +1049,342 @@ body.kumon-active #dialog-speaker {
 #toast.toast-hint::before {
   background: var(--blue);
 }
+#toast.toast-self::before {
+  background: var(--ink);
+}
+
+/* =========================================================
+   SELF HINT POPUP (after kumon clear)
+   ========================================================= */
+#self-hint {
+  background: rgba(0,0,0,0.92);
+  z-index: 92;
+}
+.hint-box.self-hint-box {
+  border-color: var(--ink);
+}
+.hint-box.self-hint-box h2 {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.hint-box .hint-lead {
+  color: var(--yellow);
+  letter-spacing: 6px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.hint-box .hint-key.self-key {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* =========================================================
+   SELF BATTLE MODE — "自分自身との戦い"
+   ========================================================= */
+/* White heart variant — もう一人の自分 */
+.p-heart.white::before {
+  width: 4px; height: 4px;
+  box-shadow:
+    4px 0 0 0 #ffffff,  8px 0 0 0 #ffffff,  20px 0 0 0 #ffffff,  24px 0 0 0 #ffffff,
+    0 4px 0 0 #ffffff,  4px 4px 0 0 #ffffff,  8px 4px 0 0 #ffffff,  12px 4px 0 0 #ffffff,
+    16px 4px 0 0 #ffffff, 20px 4px 0 0 #ffffff, 24px 4px 0 0 #ffffff, 28px 4px 0 0 #ffffff,
+    0 8px 0 0 #ffffff,  4px 8px 0 0 #ffffff,  8px 8px 0 0 #ffffff,  12px 8px 0 0 #ffffff,
+    16px 8px 0 0 #ffffff, 20px 8px 0 0 #ffffff, 24px 8px 0 0 #ffffff, 28px 8px 0 0 #ffffff,
+    0 12px 0 0 #ffffff, 4px 12px 0 0 #ffffff, 8px 12px 0 0 #ffffff, 12px 12px 0 0 #ffffff,
+    16px 12px 0 0 #ffffff, 20px 12px 0 0 #ffffff, 24px 12px 0 0 #ffffff, 28px 12px 0 0 #ffffff,
+    4px 16px 0 0 #ffffff, 8px 16px 0 0 #ffffff, 12px 16px 0 0 #ffffff, 16px 16px 0 0 #ffffff,
+    20px 16px 0 0 #ffffff, 24px 16px 0 0 #ffffff,
+    8px 20px 0 0 #ffffff, 12px 20px 0 0 #ffffff, 16px 20px 0 0 #ffffff, 20px 20px 0 0 #ffffff,
+    12px 24px 0 0 #ffffff, 16px 24px 0 0 #ffffff;
+}
+
+#self-battle-mode {
+  background: #000;
+  z-index: 80;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4vh;
+  overflow-y: auto;
+}
+.self-battle-stage {
+  width: min(100%, 720px);
+  border: 4px solid var(--frame);
+  background: #000;
+  padding: 18px 22px 18px;
+  text-align: center;
+  position: relative;
+  animation: boxIn 0.18s ease-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.self-battle-head {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px dashed rgba(255,255,255,0.25);
+  padding-bottom: 8px;
+}
+.self-turn-label {
+  color: var(--yellow);
+  letter-spacing: 5px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.self-phase-label {
+  color: var(--ink-dim);
+  letter-spacing: 4px;
+  font-size: 11px;
+}
+
+.self-enemy-row {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  padding-top: 4px;
+}
+.self-enemy-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.self-enemy-block .p-heart.white { animation: pBob 1.0s infinite alternate; }
+.self-enemy-block.hit .p-heart.white { animation: selfEnemyHit 0.3s steps(2, end) 2; }
+.self-enemy-label {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #fff;
+}
+
+.self-battle-arena {
+  position: relative;
+  width: min(100%, 480px);
+  height: 220px;
+  border: 2px solid var(--frame);
+  background: #050505;
+  margin: 4px auto 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px #000, 0 0 0 4px rgba(255,255,255,0.05);
+}
+.self-battle-arena.shake {
+  animation: selfArenaShake 0.18s steps(3, end);
+}
+.self-battle-arena .self-heart {
+  position: absolute;
+  width: 32px; height: 28px;
+  left: 0; top: 0;
+  z-index: 4;
+  will-change: transform;
+}
+.self-battle-arena .self-heart::before {
+  content: "";
+  position: absolute; top: 0; left: 0;
+  width: 4px; height: 4px;
+  background: transparent;
+  box-shadow:
+    4px 0 0 0 #ff1a1a,  8px 0 0 0 #ff1a1a,  20px 0 0 0 #ff1a1a,  24px 0 0 0 #ff1a1a,
+    0 4px 0 0 #ff1a1a,  4px 4px 0 0 #ff1a1a,  8px 4px 0 0 #ff1a1a,  12px 4px 0 0 #ff1a1a,
+    16px 4px 0 0 #ff1a1a, 20px 4px 0 0 #ff1a1a, 24px 4px 0 0 #ff1a1a, 28px 4px 0 0 #ff1a1a,
+    0 8px 0 0 #ff1a1a,  4px 8px 0 0 #ff1a1a,  8px 8px 0 0 #ff1a1a,  12px 8px 0 0 #ff1a1a,
+    16px 8px 0 0 #ff1a1a, 20px 8px 0 0 #ff1a1a, 24px 8px 0 0 #ff1a1a, 28px 8px 0 0 #ff1a1a,
+    0 12px 0 0 #ff1a1a, 4px 12px 0 0 #ff1a1a, 8px 12px 0 0 #ff1a1a, 12px 12px 0 0 #ff1a1a,
+    16px 12px 0 0 #ff1a1a, 20px 12px 0 0 #ff1a1a, 24px 12px 0 0 #ff1a1a, 28px 12px 0 0 #ff1a1a,
+    4px 16px 0 0 #ff1a1a, 8px 16px 0 0 #ff1a1a, 12px 16px 0 0 #ff1a1a, 16px 16px 0 0 #ff1a1a,
+    20px 16px 0 0 #ff1a1a, 24px 16px 0 0 #ff1a1a,
+    8px 20px 0 0 #ff1a1a, 12px 20px 0 0 #ff1a1a, 16px 20px 0 0 #ff1a1a, 20px 20px 0 0 #ff1a1a,
+    12px 24px 0 0 #ff1a1a, 16px 24px 0 0 #ff1a1a;
+}
+.self-battle-arena .self-heart.hurt {
+  animation: selfHurt 0.4s steps(4, end);
+}
+.self-obstacles {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.self-obstacle {
+  position: absolute;
+  width: 28px; height: 28px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.35));
+  will-change: transform;
+}
+.self-obstacle.spin { animation: selfSpin 1.0s linear infinite; }
+.self-arena-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0));
+}
+
+.self-player-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding-top: 2px;
+}
+.self-player-label {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--red);
+  min-width: 40px;
+}
+
+.self-battle-hp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.self-battle-hp .hp-label {
+  color: var(--ink-dim);
+  min-width: 18px;
+}
+.self-battle-hp .hp-outer {
+  width: 160px; height: 10px;
+  border: 1px solid var(--frame);
+  background: #000;
+  position: relative;
+}
+.self-battle-hp .hp-inner {
+  height: 100%;
+  width: 100%;
+  transition: width 0.35s ease-out;
+}
+.self-battle-hp .hp-inner.player { background: var(--red); }
+.self-battle-hp .hp-inner.enemy  { background: #fff; }
+.self-battle-hp .hp-num {
+  color: #fff;
+  min-width: 28px;
+  text-align: right;
+  font-size: 11px;
+}
+.self-enemy-hp { margin-top: 4px; }
+
+.self-narration {
+  width: 100%;
+  min-height: 38px;
+  border: 2px solid var(--frame);
+  background: #000;
+  padding: 8px 12px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-align: left;
+  line-height: 1.7;
+  color: #fff;
+}
+
+.self-command-box {
+  width: 100%;
+  border: 2px solid var(--frame);
+  background: #000;
+  padding: 8px 12px;
+  text-align: left;
+}
+.self-command-box .sc-head {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--yellow);
+  margin-bottom: 4px;
+}
+.self-command-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.self-command {
+  font-size: 13px;
+  letter-spacing: 3px;
+  padding: 2px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--ink-dim);
+}
+.self-command .heart-cursor { visibility: hidden; }
+.self-command.active {
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+}
+.self-command.active .heart-cursor { visibility: visible; }
+
+.self-attack-meter {
+  width: 100%;
+  border: 2px solid var(--frame);
+  background: #000;
+  padding: 8px 12px;
+}
+.self-attack-meter .sm-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.self-attack-meter .sm-track {
+  position: relative;
+  height: 16px;
+  border: 1px solid var(--frame);
+  background: #050505;
+  overflow: hidden;
+}
+.self-attack-meter .sm-zone-good {
+  position: absolute;
+  left: 42%; top: 0;
+  width: 16%; height: 100%;
+  background: rgba(255, 210, 74, 0.18);
+  border-left: 1px dashed rgba(255, 210, 74, 0.6);
+  border-right: 1px dashed rgba(255, 210, 74, 0.6);
+}
+.self-attack-meter .sm-cursor {
+  position: absolute;
+  left: 0; top: 0;
+  width: 4px; height: 100%;
+  background: var(--red);
+  will-change: transform;
+}
+
+.self-hint-line {
+  margin-top: 4px;
+}
+
+/* iframes flash — opacity-only, so it never fights the inline transform
+   that drives the heart's arena position. */
+@keyframes selfHurt {
+  0%   { opacity: 1; }
+  20%  { opacity: 0.15; }
+  40%  { opacity: 1; }
+  60%  { opacity: 0.15; }
+  80%  { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+@keyframes selfEnemyHit {
+  0%   { transform: translate(0, 0); filter: brightness(1); }
+  25%  { transform: translate(2px, -2px); filter: brightness(2); }
+  50%  { transform: translate(-2px, 1px); filter: brightness(0.4); }
+  75%  { transform: translate(2px, 1px); filter: brightness(2); }
+  100% { transform: translate(0, 0); filter: brightness(1); }
+}
+@keyframes selfArenaShake {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-3px, 1px); }
+  50%  { transform: translate(2px, -2px); }
+  75%  { transform: translate(-2px, 2px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes selfSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .self-obstacle.spin { animation-duration: 4s; }
+}
 
 /* =========================================================
    Mobile tweaks
@@ -1064,4 +1400,8 @@ body.kumon-active #dialog-speaker {
   .title-visual { max-width: 92vw; }
   #controls-hint { font-size: 13px; padding: 8px 10px; }
   #stats-mini { font-size: 9px; }
+  .self-battle-arena { height: 180px; }
+  .self-battle-hp .hp-outer { width: 120px; }
+  .self-narration { font-size: 12px; }
+  .self-command   { font-size: 12px; }
 }
